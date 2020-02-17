@@ -1,0 +1,7 @@
+name: ir1-hw2
+dependencies:
+  - gensim=3.8.0
+  - matplotlib=3.1.2
+  - nltk=3.4.5
+  - python=3.7.6
+  - pytorch=1.3.1
