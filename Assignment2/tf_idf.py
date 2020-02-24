@@ -11,7 +11,6 @@ import read_ap
 import download_ap
 
 
-
 def print_results(docs, query, n_docs_limit=10, len_limit=50):
     print(f"Query: {query}")
     docs = docs[:n_docs_limit]
@@ -24,13 +23,14 @@ def print_results(docs, query, n_docs_limit=10, len_limit=50):
 class TfIdfRetrieval():
 
     def __init__(self, docs):
-        
+
         index_path = "./tfidf_index"
         if os.path.exists(index_path):
 
             with open(index_path, "rb") as reader:
                 index = pkl.load(reader)
 
+            # inverted index
             self.ii = index["ii"]
             self.df = index["df"]
         else:
@@ -56,7 +56,7 @@ class TfIdfRetrieval():
                     "ii": self.ii,
                     "df": self.df
                 }
-                pkl.dump(index, writer) 
+                pkl.dump(index, writer)
 
     def search(self, query):
         query_repr = read_ap.process_text(query)
@@ -66,6 +66,7 @@ class TfIdfRetrieval():
             if query_term not in self.ii:
                 continue
             for (doc_id, tf) in self.ii[query_term]:
+                # divide by df is apparently an approximation of inverse df... but why no log?
                 results[doc_id] += np.log(1 + tf) / self.df[query_term]
 
         results = list(results.items())
@@ -89,12 +90,12 @@ if __name__ == "__main__":
 
     print("Running TFIDF Benchmark")
     # collect results
-    for qid in tqdm(qrels): 
+    for qid in tqdm(qrels):
         query_text = queries[qid]
 
         results = tfidf_search.search(query_text)
         overall_ser[qid] = dict(results)
-    
+
     # run evaluation with `qrels` as the ground truth relevance judgements
     # here, we are measuring MAP and NDCG, but this can be changed to 
     # whatever you prefer

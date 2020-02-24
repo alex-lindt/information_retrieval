@@ -14,7 +14,6 @@ from nltk.tokenize import word_tokenize
 
 from multiprocessing import Pool
 
-
 nltk.download("stopwords")
 nltk.download('punkt')
 eng_stopwords = set(stopwords.words('english')).union(set(string.punctuation))
@@ -98,7 +97,6 @@ def read_ap_docs(root_folder="./datasets/"):
 
 
 def get_processed_docs(doc_set_name="processed_docs"):
-
     path = f"./{doc_set_name}.pkl"
 
     if not os.path.exists(path):
@@ -112,13 +110,13 @@ def get_processed_docs(doc_set_name="processed_docs"):
         start_time = time.time()
         for i in range(0, len(docs), step_size):
             out_p_local = p.map(
-                process_text, docs[i:min(len(docs), i+step_size)])
+                process_text, docs[i:min(len(docs), i + step_size)])
             out_p += out_p_local
-            print("Processed %i of %i docs" % (i+step_size, len(docs)))
+            print("Processed %i of %i docs" % (i + step_size, len(docs)))
             time_passed = time.time() - start_time
-            time_to_go = time_passed * (len(docs)-i-step_size) / (i+step_size)
+            time_to_go = time_passed * (len(docs) - i - step_size) / (i + step_size)
             print("Estimated remaining time: %imin %isec" %
-                  (int(time_to_go/60.0), int(time_to_go) % 60))
+                  (int(time_to_go / 60.0), int(time_to_go) % 60))
 
         for i in range(len(out_p)):
             if len(out_p[i]) > 0:
@@ -131,14 +129,13 @@ def get_processed_docs(doc_set_name="processed_docs"):
 
         return doc_repr
     else:
-        print("Docs already processed. Loading from disk")
+        print(f"Docs already processed. Loading from disk: {path}")
 
         with open(path, "rb") as reader:
             return pkl.load(reader)
 
 
 def read_qrels(root_folder="./datasets/"):
-
     qrels = {}
     queries = {}
 

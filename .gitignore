@@ -1,3 +1,7 @@
 */datasets/*
 .idea/*
+*/.ipynb_checkpoints/*
 .ipynb_checkpoints/*
+*/__pycache__/*
+Assignment2/processed_docs.pkl
+Assignment2/tfidf_index
