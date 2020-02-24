@@ -112,8 +112,8 @@ def filter_infrequent_words():
 
     # filter frequent words
     for i, (doc_id, doc) in tqdm(enumerate(docs_by_id.items())):
-        if i > 40000:
-            continue
+        if i > 20000:
+            break
 
         counts = Counter(doc)
         general_counts += counts
@@ -124,8 +124,8 @@ def filter_infrequent_words():
 
     filtered_docs_by_id = {}
     for i, (doc_id, doc) in tqdm(enumerate(docs_by_id.items())):
-        if i > 40000:
-            continue
+        if i > 20000:
+            break
         _removed = [word for word in doc if word not in infreq_list]
         filtered_docs_by_id[doc_id] = _removed
 
