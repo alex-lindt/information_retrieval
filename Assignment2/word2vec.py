@@ -1,182 +1,149 @@
 import os
 import argparse
-import json
-import random
 import pickle as pkl
-from collections import defaultdict, Counter
+import json
 
 import numpy as np
-import pytrec_eval
-from tqdm import tqdm
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from torch.utils.data import Dataset, DataLoader
+from torch.nn import init
 
-import read_ap
-import download_ap
+from utils import data_processing
 
-from nltk.corpus import stopwords
+
+class Word2VecDataset(Dataset):
+    def __init__(self, data):
+        super().__init__()
+
+        self.vocab = data["vocab"]
+        self.w_to_idx = {w: i for i, w in enumerate(self.vocab)}
+
+        self.targets = data["target"]
+        self.contexts = data["context"]
+        self.negatives = data["negatives"]
+
+        self.dataset_length = len(self.targets)
+        print(f"Dataset Length: {self.dataset_length}")
+
+    def __len__(self):
+        # return self.dataset_length
+        return 10000
+
+    def __getitem__(self, idx):
+        target, context, negatives = self.targets[idx], self.contexts[idx], self.negatives[idx]
+
+        _target = torch.tensor(self.w_to_idx[target], dtype=torch.long)
+        _context = torch.tensor([self.w_to_idx[w] for w in context], dtype=torch.long)
+        _negatives = torch.tensor([self.w_to_idx[w] for w in negatives], dtype=torch.long)
+
+        return _target, _context, _negatives
 
 
 class Word2Vec(nn.Module):
-    def __init__(self, vocab_size, embed_size):
-        super().__init__()
+    def __init__(self, vocab, embed_size):
+        super(Word2Vec, self).__init__()
 
-        self.word_embeddings = nn.Embedding(vocab_size, embed_size)
+        self.vocab = vocab
+        self.vocab_size = len(vocab)
+        self.embed_size = embed_size
 
-    def forward(self, target, context):
-        pass
+        print("Vocabulary size", self.vocab_size)
+
+        self.w_embeddings = nn.Embedding(self.vocab_size, embed_size, sparse=True)
+        self.C_embeddings = nn.Embedding(self.vocab_size, embed_size, sparse=True)
+
+        initrange = 1.0 / self.embed_size
+        init.uniform_(self.w_embeddings.weight.data, -initrange, initrange)
+        init.constant_(self.C_embeddings.weight.data, 0)
+
+    def forward(self, target, contexts, negatives):
+        target_embeds = self.w_embeddings(target)
+        context_embeds = self.C_embeddings(contexts)
+        negative_embeds = self.C_embeddings(negatives)
+
+        pos_similarities = torch.bmm(target_embeds[:, None, :], context_embeds.permute(0, 2, 1)).squeeze().sum(dim=1)
+        neg_similarities = torch.bmm(target_embeds[:, None, :], negative_embeds.permute(0, 2, 1)).squeeze().sum(dim=1)
+
+        pos_similarities = torch.clamp(pos_similarities, max=10, min=-10)
+        neg_similarities = torch.clamp(neg_similarities, max=10, min=-10)
+
+        loss_pos = -F.logsigmoid(pos_similarities)
+        loss_neg = -F.logsigmoid(-neg_similarities)
+
+        return torch.mean(loss_pos + loss_neg)
 
 
-def get_w2v_data(ARGS):
-    data_path = os.path.join(ARGS.save_dir, "data")
-    if os.path.exists(data_path):
-        with open(data_path, "rb") as reader:
-            data = pkl.load(reader)
-            if data["ww_size"] != ARGS.ww_size:
-                print(f"Error! word window size of data ({data['ww_size']}) does not match the input ({ARGS.ww_size})")
-                # Could terminate here ...
-    else:
-        data = build_w2v_data(data_path, ARGS)
+def train(ARGS, data_loader, model):
+    optimizer = optim.SparseAdam(model.parameters(), lr=ARGS.lr)
 
-    return data
-
-
-def build_w2v_data(data_path, ARGS):
-    # ensure dataset is downloaded
-    download_ap.download_dataset()
-    # pre-process the text
-    docs_by_id = read_ap.get_processed_docs("processed_docs_filtered")
-
-    print(len(docs_by_id))
-
-    total_vocab = set()
-    # Head start total_vocab for negative sampling
-    for i, (doc_id, doc) in enumerate(docs_by_id.items()):
-        if i > 15:
-            break
-        doc_set = set(doc)
-        total_vocab.update(doc_set)
-
-    ww_size = ARGS.ww_size
-
-    data = {
-        "target": [],
-        "context": [],
-        "negatives": [],
-        "ww_size": ww_size,
-        "vocab": set()
+    losses = {
+        'epoch_losses': [],
+        'total_losses': [],
+        'mean_losses': []
     }
+    for epoch in range(ARGS.epochs):
+        losses['epoch_losses'] = []
+        for iteration, (targets, contexts, negatives) in enumerate(data_loader):
+            loss = model(targets, contexts, negatives)
 
-    # Create instance for retrieval
-    for i, (doc_id, doc) in tqdm(enumerate(docs_by_id.items())):
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-        doc_length = len(doc)
+            losses['epoch_losses'].append(loss.item())
 
-        # update set for total vocab
-        doc_set = set(doc)
-        total_vocab.update(doc_set)
+        losses['total_losses'].append(losses['epoch_losses'])
+        losses['mean_losses'].append(np.mean(losses['epoch_losses']))
 
-        # we don't consider the first ww_size words as it doesn't make a difference in the limit
-        for i_target in range(ww_size, doc_length - ww_size):
-            word_context = []
-            word_context.extend(doc[i_target - ww_size:i_target])
-            word_context.extend(doc[i_target+1:i_target + ww_size+1])
+        print(f"Epoch: {epoch}, Loss: {np.mean(losses['epoch_losses'])}")
 
-            target = doc[i_target]
+        if ARGS.save_interval % iteration == 0:
+            torch.save(model, os.path.join(ARGS.save_dir, "models", f"model_{epoch}.pth"))
+    torch.save(model, os.path.join(ARGS.save_dir, "models", f"model_final.pth"))
 
-            # negative sampling
-            k = ww_size * 2
-            negative_sample = random.sample(total_vocab, k)
-
-            data["target"].append(target)
-            data["context"].append(word_context)
-            data["negatives"].append(negative_sample)
-
-    data["vocab"] = total_vocab
-
-    with open(data_path, "wb") as writer:
-        pkl.dump(data, writer)
-
-    return data
-
-
-def filter_infrequent_words():
-    # ensure dataset is downloaded
-    download_ap.download_dataset()
-    # pre-process the text
-    docs_by_id = read_ap.get_processed_docs()
-
-    infreq_list = []
-    general_counts = Counter()
-
-    # filter frequent words
-    for i, (doc_id, doc) in tqdm(enumerate(docs_by_id.items())):
-        if i > 20000:
-            break
-
-        counts = Counter(doc)
-        general_counts += counts
-
-    for t, c in tqdm(general_counts.items()):
-        if c <= 50:
-            infreq_list.append(t)
-
-    filtered_docs_by_id = {}
-    for i, (doc_id, doc) in tqdm(enumerate(docs_by_id.items())):
-        if i > 20000:
-            break
-        _removed = [word for word in doc if word not in infreq_list]
-        filtered_docs_by_id[doc_id] = _removed
-
-    with open(f"./processed_docs_filtered.pkl", "wb") as writer:
-        pkl.dump(filtered_docs_by_id, writer)
+    with open(os.path.join(ARGS.save_dir, "losses.json"), 'w') as fp:
+        json.dump(losses, fp)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # General
-    parser.add_argument('--save_dir', type=str, default="./word2vec", help="Where outputs are saved")
-    parser.add_argument('--filter_infreq_words', type=bool, default=False,
+    parser.add_argument('--save-dir', type=str, default="./word2vec", help="Where outputs are saved")
+    parser.add_argument('--filter-infreq-words', type=bool, default=False,
                         help="Run function filtering infrequent words")
-    parser.add_argument('--use_data', type=int, default=80000, help="How much data will be used")
+    parser.add_argument('--use-data', type=int, default=20000, help="How much data will be used")
 
     # Training
     parser.add_argument('--epochs', type=int, default=200, help='number of epochs')
-    parser.add_argument('--batch_size', type=int, default=32, help='batch size')
-    parser.add_argument('--lr', type=float, default=0.002, help='learning rate')
-    parser.add_argument('--save_interval', type=int, default=500, help='save every save_interval iterations')
+    parser.add_argument('--batch-size', type=int, default=32, help='batch size')
+    parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
+    parser.add_argument('--save-interval', type=int, default=25000, help='save every save_interval iterations')
     parser.add_argument('--device', type=str, default="cpu", help="Training device 'cpu' or 'cuda:0'")
 
     # Word2vec
-    parser.add_argument('--ww_size', type=int, default=4, help='Size of word window')
+    parser.add_argument('--ww-size', type=int, default=4, help='Size of word window')
+    parser.add_argument('--embed-dim', type=int, default=100, help='Size of word embedding')
 
     ARGS = parser.parse_args()
 
     if not os.path.exists(ARGS.save_dir):
         os.makedirs(ARGS.save_dir)
+        os.makedirs(os.path.join(ARGS.save_dir, "models"))
 
     if ARGS.filter_infreq_words:
-        filter_infrequent_words()
+        data_processing.filter_infrequent_words(ARGS.use_data)
 
-    data = get_w2v_data(ARGS)
+    data = data_processing.get_w2v_data(ARGS)
 
-# loss_function = nn.NLLLoss()
+    vocab = data["vocab"]
+    model = Word2Vec(vocab, ARGS.embed_dim).to(ARGS.device)
 
-# vocab = set(raw_text)
-# vocab_size = len(vocab)
-# word_to_ix = {word: i for i, word in enumerate(vocab)}
+    word2vec_dataset = Word2VecDataset(data)
+    data_loader = DataLoader(word2vec_dataset, batch_size=ARGS.batch_size, shuffle=True, num_workers=2)
 
-# data = []
-# for i in range(2, len(raw_text) - 2):
-#     context = [raw_text[i - 2], raw_text[i - 1],
-#                raw_text[i + 1], raw_text[i + 2]]
-#     target = raw_text[i]
-#     data.append((context, target))
-# print(data[:5])
-
-
-# def make_context_vector(context, word_to_ix):
-#     idxs = [word_to_ix[w] for w in context]
-#     return torch.tensor(idxs, dtype=torch.long)
+    train(ARGS, data_loader, model)
