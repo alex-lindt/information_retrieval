@@ -85,9 +85,11 @@ def train(ARGS, data_loader, model):
         'total_losses': [],
         'mean_losses': []
     }
+    t_iteration = 0
     for epoch in range(ARGS.epochs):
         losses['epoch_losses'] = []
         for iteration, (targets, contexts, negatives) in enumerate(data_loader):
+            t_iteration += 1
             loss = model(targets, contexts, negatives)
 
             optimizer.zero_grad()
@@ -99,10 +101,10 @@ def train(ARGS, data_loader, model):
         losses['total_losses'].append(losses['epoch_losses'])
         losses['mean_losses'].append(np.mean(losses['epoch_losses']))
 
-        print(f"Epoch: {epoch}, Loss: {np.mean(losses['epoch_losses'])}")
+        print(f"Epoch: {epoch}, Loss: {np.mean(losses['epoch_losses'])}, total iteration: {t_iteration}")
 
-        if ARGS.save_interval % iteration == 0:
-            torch.save(model, os.path.join(ARGS.save_dir, "models", f"model_{epoch}.pth"))
+        if epoch in [ARGS.epochs * 0.25, ARGS.epochs * 0.5, ARGS.epochs * 0.75]:
+            torch.save(model, os.path.join(ARGS.save_dir, "models", f"model_{t_iteration}.pth"))
     torch.save(model, os.path.join(ARGS.save_dir, "models", f"model_final.pth"))
 
     with open(os.path.join(ARGS.save_dir, "losses.json"), 'w') as fp:
@@ -122,7 +124,7 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', type=int, default=200, help='number of epochs')
     parser.add_argument('--batch-size', type=int, default=32, help='batch size')
     parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
-    parser.add_argument('--save-interval', type=int, default=25000, help='save every save_interval iterations')
+    parser.add_argument('--save-interval', type=int, default=1000000, help='save every save_interval iterations')
     parser.add_argument('--device', type=str, default="cpu", help="Training device 'cpu' or 'cuda:0'")
 
     # Word2vec
