@@ -7,3 +7,5 @@
 Assignment2/processed_docs.pkl
 Assignment2/tfidf_index
 Assignment2/word2vec/data
+Assignment2/filtered_docs/*
+Assignment2/vocabs/*

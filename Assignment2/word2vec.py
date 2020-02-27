@@ -1,6 +1,5 @@
 import os
-import argparse
-import pickle as pkl
+
 import json
 
 import numpy as np
@@ -16,29 +15,35 @@ from utils import data_processing
 
 
 class Word2VecDataset(Dataset):
-    def __init__(self, data):
+    def __init__(self, data, ARGS):
         super().__init__()
 
         self.vocab = data["vocab"]
         self.w_to_idx = {w: i for i, w in enumerate(self.vocab)}
 
+        self.ww_size = ARGS.ww_size
+
         self.targets = data["target"]
         self.contexts = data["context"]
         self.negatives = data["negatives"]
+
+        self.clip_size = len(self.contexts[0]) - self.ww_size
+
+        print(len(self.contexts[0]), self.ww_size, self.clip_size)
 
         self.dataset_length = len(self.targets)
         print(f"Dataset Length: {self.dataset_length}")
 
     def __len__(self):
-        return self.dataset_length
-        #return 10000
+        # return self.dataset_length
+        return 10000
 
     def __getitem__(self, idx):
         target, context, negatives = self.targets[idx], self.contexts[idx], self.negatives[idx]
 
-        _target = torch.tensor(self.w_to_idx[target], dtype=torch.long)
-        _context = torch.tensor([self.w_to_idx[w] for w in context], dtype=torch.long)
-        _negatives = torch.tensor([self.w_to_idx[w] for w in negatives], dtype=torch.long)
+        _target = torch.tensor(self.vocab.token2id[target], dtype=torch.long)
+        _context = torch.tensor([self.vocab.token2id[w] for w in context], dtype=torch.long)
+        _negatives = torch.tensor([self.vocab.token2id[w] for w in negatives], dtype=torch.long)
 
         return _target, _context, _negatives
 
@@ -56,8 +61,11 @@ class Word2Vec(nn.Module):
         self.w_embeddings = nn.Embedding(self.vocab_size, embed_size, sparse=True)
         self.C_embeddings = nn.Embedding(self.vocab_size, embed_size, sparse=True)
 
-        initrange = 1.0 / self.embed_size
-        init.uniform_(self.w_embeddings.weight.data, -initrange, initrange)
+
+        # Xavier init, best practice over various repositories. Otherwise learning is hindered.
+        # Replace with torch.nn.init.xavier_normal_ ?
+        _d = 1.0 / self.embed_size
+        init.uniform_(self.w_embeddings.weight.data, -_d, _d)
         init.constant_(self.C_embeddings.weight.data, 0)
 
     def forward(self, target, contexts, negatives):
@@ -109,48 +117,3 @@ def train(ARGS, data_loader, model):
 
     with open(os.path.join(ARGS.save_dir, "losses.json"), 'w') as fp:
         json.dump(losses, fp)
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-
-    # General
-    parser.add_argument('--save-dir', type=str, default="./word2vec", help="Where outputs are saved")
-    parser.add_argument('--find-infreq-words', type=bool, default=False,
-                        help="Run function filtering infrequent words")
-    parser.add_argument('--use-data', type=int, default=20000, help="How much data will be used")
-    parser.add_argument('--freq-thresh', type=int, default=150, help="How much data will be used")
-
-    # Training
-    parser.add_argument('--epochs', type=int, default=200, help='number of epochs')
-    parser.add_argument('--batch-size', type=int, default=32, help='batch size')
-    parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
-    parser.add_argument('--save-interval', type=int, default=1000000, help='save every save_interval iterations')
-    parser.add_argument('--device', type=str, default="cpu", help="Training device 'cpu' or 'cuda:0'")
-
-    # Word2vec
-    parser.add_argument('--ww-size', type=int, default=20, help='Size of word window')
-    parser.add_argument('--embed-dim', type=int, default=100, help='Size of word embedding')
-
-    ARGS = parser.parse_args()
-
-    if not os.path.exists(ARGS.save_dir):
-        os.makedirs(ARGS.save_dir)
-        os.makedirs(os.path.join(ARGS.save_dir, "models"))
-
-    if ARGS.find_infreq_words:
-        data_processing.find_frequent_words(ARGS.freq_thresh)
-        data_processing.remove_frequent_words()
-
-    with open("infrequent_words.pkl", "rb") as reader:
-        infrequent_words = pkl.load(reader)
-
-    data = data_processing.get_w2v_data(ARGS)
-
-    # vocab = data["vocab"]
-    # model = Word2Vec(vocab, ARGS.embed_dim).to(ARGS.device)
-    #
-    # word2vec_dataset = Word2VecDataset(data)
-    # data_loader = DataLoader(word2vec_dataset, batch_size=ARGS.batch_size, shuffle=True, num_workers=2)
-    #
-    # train(ARGS, data_loader, model)
