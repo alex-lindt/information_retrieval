@@ -73,7 +73,7 @@ def build_w2v_data(data_path, vocabulary, ARGS, start_iter=0):
             target = doc[i_target]
 
             # negative sampling
-            k = ww_size
+            k = ww_size * 2
             # _samples = np.random.randint(vocab_size, size=k)
             # Due to large constants of np.random.randint for small k this is faster
             _samples = [int(vocab_size * random.random()) for i in range(k)]

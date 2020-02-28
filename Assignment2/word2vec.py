@@ -28,7 +28,7 @@ class Word2VecDataset(Dataset):
         self.negatives = data["negatives"]
 
         # Allows us to use data generated ww_size K with our current ww_size J given J < K
-        self.clip = int((len(self.contexts[0]) - self.ww_size) / 2)
+        self.clip = int((len(self.contexts[0]) - self.ww_size * 2) / 2)
 
         self.dataset_length = len(self.targets)
         print(f"Dataset Length: {self.dataset_length}")
@@ -62,7 +62,7 @@ class Word2Vec(nn.Module):
         print("Vocabulary size", self.vocab_size)
 
         self.w_embeddings = nn.Embedding(self.vocab_size, embed_size, sparse=True)
-        self.C_embeddings = nn.Embedding(self.vocab_size, embed_size, sparse=True)
+        self.c_embeddings = nn.Embedding(self.vocab_size, embed_size, sparse=True)
 
         # Does not work with embedding ...
         # torch.nn.init.xavier_uniform_(self.w_embeddings)
@@ -71,12 +71,14 @@ class Word2Vec(nn.Module):
         # Xavier init, best practice over various repositories. Otherwise learning is hindered.
         _d = 1.0 / self.embed_size
         init.uniform_(self.w_embeddings.weight.data, -_d, _d)
-        init.uniform_(self.C_embeddings.weight.data, -_d, _d)
+        # Constant init for c embeddings help massively with optimization
+        init.constant_(self.c_embeddings.weight.data, 0)
+        # init.uniform_(self.C_embeddings.weight.data, -_d, _d)
 
     def forward(self, target, contexts, negatives):
         target_embeds = self.w_embeddings(target)
-        context_embeds = self.C_embeddings(contexts)
-        negative_embeds = self.C_embeddings(negatives)
+        context_embeds = self.c_embeddings(contexts)
+        negative_embeds = self.c_embeddings(negatives)
 
         pos_similarities = torch.bmm(target_embeds[:, None, :], context_embeds.permute(0, 2, 1)).squeeze().sum(dim=1)
         neg_similarities = torch.bmm(target_embeds[:, None, :], negative_embeds.permute(0, 2, 1)).squeeze().sum(dim=1)
