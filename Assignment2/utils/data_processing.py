@@ -38,14 +38,13 @@ def build_w2v_data(data_path, vocabulary, ARGS, start_iter=0):
     id2token = {v: k for k, v in vocabulary.items()}
     full_vocab = {
         "id2token": id2token,
-        "token2id": vocabulary
+        "token2id": vocabulary  # is already token2id
     }
 
     print("Number of documents", len(list(docs_by_id.items())[start_iter:]))
     print("Size vocabulary:", vocab_size)
 
     ww_size = ARGS.ww_size
-    ww_size_half = int(ww_size / 2)
 
     if ARGS.load_data_checkpoint:
         data = load_pickle(data_path.format(start_iter))
@@ -68,14 +67,15 @@ def build_w2v_data(data_path, vocabulary, ARGS, start_iter=0):
         for i_target in range(ww_size, doc_length - ww_size):
 
             word_context = []
-            word_context.extend(doc[i_target - ww_size_half:i_target])
-            word_context.extend(doc[i_target + 1:i_target + ww_size_half + 1])
+            word_context.extend(doc[i_target - ww_size:i_target])
+            word_context.extend(doc[i_target + 1:i_target + ww_size + 1])
 
             target = doc[i_target]
 
             # negative sampling
             k = ww_size
             # _samples = np.random.randint(vocab_size, size=k)
+            # Due to large constants of np.random.randint for small k this is faster
             _samples = [int(vocab_size * random.random()) for i in range(k)]
             negative_sample = []
             # Although a for loop, way more efficient than random.sample
@@ -95,23 +95,6 @@ def build_w2v_data(data_path, vocabulary, ARGS, start_iter=0):
     save_pickle(data, data_path.format("final"))
 
     return data
-
-
-def find_frequent_words(freq_thresh):
-    print("Find infrequent words...")
-    # ensure dataset is downloaded
-    download_ap.download_dataset()
-    # pre-process the text
-    docs_by_id = read_ap.get_processed_docs()
-
-    total_counts = Counter(itertools.chain.from_iterable(docs_by_id.values()))
-    infrequent_words = Counter(el for el in total_counts.elements() if total_counts[el] >= freq_thresh)
-
-    # word_dict = Dictionary(docs_by_id.values())
-    # word_dict.filter_n_most_frequent(remove_n=freq_thresh)
-    # infrequent_words = set(word_dict.token2id.keys())
-
-    save_pickle(infrequent_words, f"infrequent_words_{freq_thresh}.pkl")
 
 
 def remove_frequent_words(freq_thresh):

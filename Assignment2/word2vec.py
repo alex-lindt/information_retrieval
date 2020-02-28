@@ -119,7 +119,7 @@ def train(ARGS, data_loader, model):
 
         print(f"Epoch: {epoch}, Loss: {np.mean(losses['epoch_losses'])}, total iteration: {t_iteration}")
 
-        if epoch in [ARGS.epochs * 0.25, ARGS.epochs * 0.5, ARGS.epochs * 0.75]:
+        if epoch in [int(ARGS.epochs * 0.25), int(ARGS.epochs * 0.5), int(ARGS.epochs * 0.75)]:
             torch.save(model, os.path.join(ARGS.save_dir, "models", f"ww_{ARGS.ww_size}", f"model_{t_iteration}.pth"))
     torch.save(model, os.path.join(ARGS.save_dir, "models", f"ww_{ARGS.ww_size}", f"model_final.pth"))
 
