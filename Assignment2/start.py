@@ -2,10 +2,11 @@ import os
 import argparse
 import pickle as pkl
 
+import torch
 from torch.utils.data import DataLoader
 
 from utils import data_processing
-from word2vec import Word2Vec, Word2VecDataset, train
+from word2vec import Word2Vec, Word2VecDataset, train, W2VRetrieval
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -18,6 +19,12 @@ if __name__ == "__main__":
     parser.add_argument('--start-iter', type=int, default=0, help="Start iteration for w2v data generation.")
     parser.add_argument('--load-data-checkpoint', type=bool, default=False, help="Load checkpoint dict")
     parser.add_argument('--data-load-iter', type=str, default="final", help="Data_{} appendix for loading.")
+
+    parser.add_argument('--mode', type=str, default="train", help="Whether perform training or retrieval.")
+
+    # Query
+    parser.add_argument('--query', type=str, default="ant", help="Query to be evaluated")
+    parser.add_argument('--aggr', type=str, default="mean", help="Type of aggregation to use")
 
     # Training
     parser.add_argument('--epochs', type=int, default=200, help='number of epochs')
@@ -39,18 +46,30 @@ if __name__ == "__main__":
     if ARGS.find_infreq_words:
         data_processing.remove_frequent_words(ARGS.freq_thresh)
 
-    infrequent_words = data_processing.load_pickle(f"vocabs/infrequent_words_{ARGS.freq_thresh}.pkl")
+    vocab = data_processing.load_pickle(f"vocabs/vocab_{ARGS.freq_thresh}.pkl")
 
-    print("Loading data ...")
-    data = data_processing.get_w2v_data(ARGS)
+    if ARGS.mode == "train":
+        print("Starting Training branch...")
 
-    vocab = data["vocab"]
+        print("Loading data ...")
+        data = data_processing.get_w2v_data(ARGS)
 
-    print("Initializing model ...")
-    model = Word2Vec(vocab, ARGS.embed_dim).to(ARGS.device)
+        print("Initializing dataset and data loader...")
+        word2vec_dataset = Word2VecDataset(data, ARGS)
+        data_loader = DataLoader(word2vec_dataset, batch_size=ARGS.batch_size, shuffle=True, num_workers=2)
 
-    print("Initializing dataset")
-    word2vec_dataset = Word2VecDataset(data, ARGS)
-    data_loader = DataLoader(word2vec_dataset, batch_size=ARGS.batch_size, shuffle=True, num_workers=2)
+        print("Initializing model ...")
+        model = Word2Vec(vocab, ARGS.embed_dim).to(ARGS.device)
 
-    train(ARGS, data_loader, model)
+        print("Train...")
+        train(ARGS, data_loader, model)
+
+    elif ARGS.mode == "retrieval":
+
+        model = torch.load(os.path.join(ARGS.save_dir, "models", f"ww_{ARGS.ww_size}", "model_final.pth"))
+        model.eval()
+
+        docs_by_id = data_processing.load_pickle(f"filtered_docs/filtered_docs_{ARGS.freq_thresh}.pkl")
+        retriever = W2VRetrieval(ARGS, model, docs_by_id)
+        print(f"Search query: {ARGS.query}")
+        retriever.match_query_against_words(ARGS.query)

@@ -23,7 +23,7 @@ def get_w2v_data(ARGS):
     if os.path.exists(data_path.format(ARGS.data_load_iter)):
         return load_pickle(data_path.format(ARGS.data_load_iter))
     else:
-        infrequent_words = load_pickle(f"vocabs/infrequent_words_{ARGS.freq_thresh}.pkl")
+        infrequent_words = load_pickle(f"vocabs/vocab_{ARGS.freq_thresh}.pkl")
         return build_w2v_data(data_path, infrequent_words, ARGS, start_iter=ARGS.start_iter)
 
 
@@ -33,13 +33,7 @@ def build_w2v_data(data_path, vocabulary, ARGS, start_iter=0):
     # pre-process the text
     docs_by_id = load_pickle(f"filtered_docs/filtered_docs_{ARGS.freq_thresh}.pkl")
 
-    vocab_size = len(vocabulary)
-
-    id2token = {v: k for k, v in vocabulary.items()}
-    full_vocab = {
-        "id2token": id2token,
-        "token2id": vocabulary  # is already token2id
-    }
+    vocab_size = len(vocabulary["id2token"])
 
     print("Number of documents", len(list(docs_by_id.items())[start_iter:]))
     print("Size vocabulary:", vocab_size)
@@ -55,7 +49,7 @@ def build_w2v_data(data_path, vocabulary, ARGS, start_iter=0):
             "context": [],
             "negatives": [],
             "ww_size": ww_size,
-            "vocab": full_vocab
+            "vocab": vocabulary
         }
 
     # Create instance for retrieval
@@ -80,7 +74,7 @@ def build_w2v_data(data_path, vocabulary, ARGS, start_iter=0):
             negative_sample = []
             # Although a for loop, way more efficient than random.sample
             for s in _samples:
-                negative_sample.append(full_vocab["id2token"][s])
+                negative_sample.append(vocabulary["id2token"][s])
 
             data["target"].append(target)
             data["context"].append(word_context)
@@ -109,10 +103,15 @@ def remove_frequent_words(freq_thresh):
     total_counts = Counter(itertools.chain.from_iterable(docs_by_id.values()))
     infrequent_words = Counter(el for el in total_counts.elements() if total_counts[el] >= freq_thresh)
     token2id = {w: i for i, w in enumerate(infrequent_words)}
+    id2token = {i: w for w, i in token2id.items()}
+    vocab = {
+        "id2token": id2token,
+        "token2id": token2id
+    }
 
     new_docs = {}
     for i, (doc_id, _doc) in tqdm(enumerate(docs_by_id.items())):
-        doc = [w for w in _doc if w in infrequent_words]
+        doc = [w for w in _doc if w in token2id]
         new_docs[doc_id] = doc
 
     if not os.path.exists("filtered_docs/"):
@@ -120,7 +119,7 @@ def remove_frequent_words(freq_thresh):
     if not os.path.exists("vocabs/"):
         os.makedirs("vocabs/")
 
-    save_pickle(token2id, f"vocabs/infrequent_words_{freq_thresh}.pkl")
+    save_pickle(vocab, f"vocabs/vocab_{freq_thresh}.pkl")
     save_pickle(new_docs, f"filtered_docs/filtered_docs_{freq_thresh}.pkl")
 
 

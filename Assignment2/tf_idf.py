@@ -79,7 +79,10 @@ if __name__ == "__main__":
     # ensure dataset is downloaded
     download_ap.download_dataset()
     # pre-process the text
-    docs_by_id = read_ap.get_processed_docs()
+    # docs_by_id = read_ap.get_processed_docs()
+
+    with open("filtered_docs/filtered_docs_150.pkl", "rb") as reader:
+        docs_by_id = pkl.load(reader)
 
     # Create instance for retrieval
     tfidf_search = TfIdfRetrieval(docs_by_id)
