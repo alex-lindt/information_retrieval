@@ -19,7 +19,7 @@ class Word2VecDataset(Dataset):
         super().__init__()
 
         self.vocab = data["vocab"]
-        self.w_to_idx = {w: i for i, w in enumerate(self.vocab)}
+        self.token2id = self.vocab["token2id"]
 
         self.ww_size = ARGS.ww_size
 
@@ -27,9 +27,8 @@ class Word2VecDataset(Dataset):
         self.contexts = data["context"]
         self.negatives = data["negatives"]
 
-        self.clip_size = len(self.contexts[0]) - self.ww_size
-
-        print(len(self.contexts[0]), self.ww_size, self.clip_size)
+        # Allows us to use data generated ww_size K with our current ww_size J given J < K
+        self.clip = int((len(self.contexts[0]) - self.ww_size) / 2)
 
         self.dataset_length = len(self.targets)
         print(f"Dataset Length: {self.dataset_length}")
@@ -39,11 +38,15 @@ class Word2VecDataset(Dataset):
         return 10000
 
     def __getitem__(self, idx):
-        target, context, negatives = self.targets[idx], self.contexts[idx], self.negatives[idx]
+        target = self.targets[idx]
+        if self.clip > 0:
+            context, negatives = self.contexts[idx][self.clip:-self.clip], self.negatives[idx][self.clip:-self.clip]
+        else:
+            context, negatives = self.contexts[idx], self.negatives[idx]
 
-        _target = torch.tensor(self.vocab.token2id[target], dtype=torch.long)
-        _context = torch.tensor([self.vocab.token2id[w] for w in context], dtype=torch.long)
-        _negatives = torch.tensor([self.vocab.token2id[w] for w in negatives], dtype=torch.long)
+        _target = torch.tensor(self.token2id[target], dtype=torch.long)
+        _context = torch.tensor([self.token2id[w] for w in context], dtype=torch.long)
+        _negatives = torch.tensor([self.token2id[w] for w in negatives], dtype=torch.long)
 
         return _target, _context, _negatives
 
@@ -53,7 +56,7 @@ class Word2Vec(nn.Module):
         super(Word2Vec, self).__init__()
 
         self.vocab = vocab
-        self.vocab_size = len(vocab)
+        self.vocab_size = len(vocab["id2token"])
         self.embed_size = embed_size
 
         print("Vocabulary size", self.vocab_size)
@@ -61,12 +64,14 @@ class Word2Vec(nn.Module):
         self.w_embeddings = nn.Embedding(self.vocab_size, embed_size, sparse=True)
         self.C_embeddings = nn.Embedding(self.vocab_size, embed_size, sparse=True)
 
+        # Does not work with embedding ...
+        # torch.nn.init.xavier_uniform_(self.w_embeddings)
+        # torch.nn.init.xavier_uniform_((self.C_embeddings)
 
         # Xavier init, best practice over various repositories. Otherwise learning is hindered.
-        # Replace with torch.nn.init.xavier_normal_ ?
         _d = 1.0 / self.embed_size
         init.uniform_(self.w_embeddings.weight.data, -_d, _d)
-        init.constant_(self.C_embeddings.weight.data, 0)
+        init.uniform_(self.C_embeddings.weight.data, -_d, _d)
 
     def forward(self, target, contexts, negatives):
         target_embeds = self.w_embeddings(target)
@@ -87,6 +92,9 @@ class Word2Vec(nn.Module):
 
 def train(ARGS, data_loader, model):
     optimizer = optim.SparseAdam(model.parameters(), lr=ARGS.lr)
+
+    if not os.path.exists(os.path.join(ARGS.save_dir, "models", f"ww_{ARGS.ww_size}")):
+        os.makedirs(os.path.join(ARGS.save_dir, "models", f"ww_{ARGS.ww_size}"))
 
     losses = {
         'epoch_losses': [],
@@ -112,8 +120,8 @@ def train(ARGS, data_loader, model):
         print(f"Epoch: {epoch}, Loss: {np.mean(losses['epoch_losses'])}, total iteration: {t_iteration}")
 
         if epoch in [ARGS.epochs * 0.25, ARGS.epochs * 0.5, ARGS.epochs * 0.75]:
-            torch.save(model, os.path.join(ARGS.save_dir, "models", f"model_{t_iteration}.pth"))
-    torch.save(model, os.path.join(ARGS.save_dir, "models", f"model_final.pth"))
+            torch.save(model, os.path.join(ARGS.save_dir, "models", f"ww_{ARGS.ww_size}", f"model_{t_iteration}.pth"))
+    torch.save(model, os.path.join(ARGS.save_dir, "models", f"ww_{ARGS.ww_size}", f"model_final.pth"))
 
-    with open(os.path.join(ARGS.save_dir, "losses.json"), 'w') as fp:
+    with open(os.path.join(ARGS.save_dir, "models", f"ww_{ARGS.ww_size}", "losses.json"), 'w') as fp:
         json.dump(losses, fp)

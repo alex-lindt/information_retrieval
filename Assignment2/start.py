@@ -17,17 +17,17 @@ if __name__ == "__main__":
     parser.add_argument('--freq-thresh', type=int, default=150, help="How much data will be used")
     parser.add_argument('--start-iter', type=int, default=0, help="Start iteration for w2v data generation.")
     parser.add_argument('--load-data-checkpoint', type=bool, default=False, help="Load checkpoint dict")
-    parser.add_argument('--data_load_iter', type=str, default="final", help="Data_{} appendix for loading.")
+    parser.add_argument('--data-load-iter', type=str, default="final", help="Data_{} appendix for loading.")
 
     # Training
     parser.add_argument('--epochs', type=int, default=200, help='number of epochs')
-    parser.add_argument('--batch-size', type=int, default=32, help='batch size')
-    parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
-    parser.add_argument('--save-interval', type=int, default=1000000, help='save every save_interval iterations')
+    parser.add_argument('--batch-size', type=int, default=1024, help='batch size')
+    parser.add_argument('--lr', type=float, default=0.003, help='learning rate')
+    parser.add_argument('--save-interval', type=int, default=20000, help='save every save_interval iterations')
     parser.add_argument('--device', type=str, default="cpu", help="Training device 'cpu' or 'cuda:0'")
 
     # Word2vec
-    parser.add_argument('--ww-size', type=int, default=10, help='Size of word window. Needs to be dividable by 2.')
+    parser.add_argument('--ww-size', type=int, default=20, help='Size of word window. Needs to be dividable by 2.')
     parser.add_argument('--embed-dim', type=int, default=100, help='Size of word embedding')
 
     ARGS = parser.parse_args()
@@ -37,10 +37,9 @@ if __name__ == "__main__":
         os.makedirs(os.path.join(ARGS.save_dir, "models"))
 
     if ARGS.find_infreq_words:
-        # data_processing.find_frequent_words(ARGS.freq_thresh)
         data_processing.remove_frequent_words(ARGS.freq_thresh)
 
-    infrequent_words = data_processing.load_pickle(f"infrequent_words_{ARGS.freq_thresh}.pkl")
+    infrequent_words = data_processing.load_pickle(f"vocabs/infrequent_words_{ARGS.freq_thresh}.pkl")
 
     print("Loading data ...")
     data = data_processing.get_w2v_data(ARGS)

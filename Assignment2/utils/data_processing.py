@@ -20,10 +20,10 @@ from gensim.parsing.preprocessing import remove_stopwords
 
 def get_w2v_data(ARGS):
     data_path = os.path.join(ARGS.save_dir, "data_{}")
-    if os.path.exists(data_path.format("final")):
-        return load_pickle(data_path.format("final"))
+    if os.path.exists(data_path.format(ARGS.data_load_iter)):
+        return load_pickle(data_path.format(ARGS.data_load_iter))
     else:
-        infrequent_words = load_pickle(f"infrequent_words_{ARGS.freq_thresh}.pkl")
+        infrequent_words = load_pickle(f"vocabs/infrequent_words_{ARGS.freq_thresh}.pkl")
         return build_w2v_data(data_path, infrequent_words, ARGS, start_iter=ARGS.start_iter)
 
 
@@ -31,7 +31,7 @@ def build_w2v_data(data_path, vocabulary, ARGS, start_iter=0):
     # ensure dataset is downloaded
     download_ap.download_dataset()
     # pre-process the text
-    docs_by_id = load_pickle(f"filtered_docs_{ARGS.freq_thresh}.pkl")
+    docs_by_id = load_pickle(f"filtered_docs/filtered_docs_{ARGS.freq_thresh}.pkl")
 
     vocab_size = len(vocabulary)
 
@@ -75,18 +75,22 @@ def build_w2v_data(data_path, vocabulary, ARGS, start_iter=0):
 
             # negative sampling
             k = ww_size
-            _samples = np.random.randint(vocab_size, size=k)
+            # _samples = np.random.randint(vocab_size, size=k)
+            _samples = [int(vocab_size * random.random()) for i in range(k)]
             negative_sample = []
             # Although a for loop, way more efficient than random.sample
             for s in _samples:
-                negative_sample.append(full_vocab.id2token[s])
+                negative_sample.append(full_vocab["id2token"][s])
 
             data["target"].append(target)
             data["context"].append(word_context)
             data["negatives"].append(negative_sample)  # does it make a difference that we don't do this in the end?
 
-        if (start_iter + i + 1) % 10000 == 0:
-            save_pickle(data, data_path.format(start_iter + i))
+        if i >= 60000:
+            break
+
+        # if (start_iter + i + 1) % 80000 == 0:
+        #     save_pickle(data, data_path.format(start_iter + i))
 
     save_pickle(data, data_path.format("final"))
 
