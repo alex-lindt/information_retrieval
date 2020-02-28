@@ -25,6 +25,8 @@ if __name__ == "__main__":
     # Query
     parser.add_argument('--query', type=str, default="ant", help="Query to be evaluated")
     parser.add_argument('--aggr', type=str, default="mean", help="Type of aggregation to use")
+    parser.add_argument('--ret-mode', type=str, default="words", help="Query words (words) or documents (docs)")
+    parser.add_argument('--top-n', type=int, default=10, help="Top N of best matching results")
 
     # Training
     parser.add_argument('--epochs', type=int, default=200, help='number of epochs')
@@ -66,10 +68,16 @@ if __name__ == "__main__":
 
     elif ARGS.mode == "retrieval":
 
+        print(f"Load model: ww_{ARGS.ww_size}/model_final.pth...")
         model = torch.load(os.path.join(ARGS.save_dir, "models", f"ww_{ARGS.ww_size}", "model_final.pth"))
         model.eval()
 
         docs_by_id = data_processing.load_pickle(f"filtered_docs/filtered_docs_{ARGS.freq_thresh}.pkl")
         retriever = W2VRetrieval(ARGS, model, docs_by_id)
         print(f"Search query: {ARGS.query}")
-        retriever.match_query_against_words(ARGS.query)
+        if ARGS.ret_mode == "words":
+            top_words = retriever.match_query_against_words(ARGS.query)
+            print(f"Top {ARGS.top_n} words:", top_words)
+        if ARGS.ret_mode == "docs":
+            top_docs = retriever.match_query_against_docs(ARGS.query)
+            print(f"Top {ARGS.top_n} docs (by doc id):", top_docs)

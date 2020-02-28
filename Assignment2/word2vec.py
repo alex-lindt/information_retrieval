@@ -111,8 +111,10 @@ class W2VRetrieval:
             index = self.create_inverted_index(docs, index_path)
             self.ii = index["ii"]
 
+        self.ARGS = ARGS
         self.model = w2v_model
         self.vocab = w2v_model.vocab
+        self.docs = docs
 
     @staticmethod
     def create_inverted_index(docs, index_path):
@@ -140,17 +142,43 @@ class W2VRetrieval:
         data_processing.save_pickle(index, index_path)
         return index
 
+    def calc_cosine_similarity(self, query, goal_embeddings):
+        similarities = F.cosine_similarity(query, goal_embeddings, dim=1)
+        return similarities.argsort(descending=True)
+
     def match_query_against_words(self, query):
         query_repr = read_ap.process_text(query)
         q_embeddings = self.model.inference_on_words(query_repr)
         # If the query is a sentence we can compare the sentence against words
-        agg_embeddings = aggregate_embeddings(q_embeddings, method="mean")
+        agg_embeddings = aggregate_embeddings(q_embeddings, method=self.ARGS.aggr)
 
-        similarities = F.cosine_similarity(agg_embeddings, self.model.w_embeddings.weight, dim=1)
-        sort_indices = similarities.argsort(descending=True)
+        sorted_w_idx = self.calc_cosine_similarity(agg_embeddings, self.model.w_embeddings.weight)
 
-        for i in sort_indices[:10]:
-            print(self.model.vocab["id2token"][i.item()])
+        results = [self.model.vocab["id2token"][i.item()] for i in sorted_w_idx[:self.ARGS.top_n]]
+        return results
+
+    def match_query_against_docs(self, query):
+
+        query_repr = read_ap.process_text(query)
+        q_embeddings = self.model.inference_on_words(query_repr)
+        q_embedding = aggregate_embeddings(q_embeddings, method=self.ARGS.aggr)
+
+        doc_ids = []
+        embed_docs = []
+        for doc_id, doc in tqdm(self.docs.items()):
+            embed_docs.append(self.get_doc_embedding(doc))
+            doc_ids.append(doc_id)
+
+        doc_embeddings = torch.stack(embed_docs).squeeze()
+
+        sorted_doc_idx = self.calc_cosine_similarity(q_embedding, doc_embeddings)
+
+        results = [doc_ids[i.item()] for i in sorted_doc_idx[:self.ARGS.top_n]]
+        return results
+
+    def get_doc_embedding(self, doc):
+        w_embeddings = self.model.inference_on_words(doc)
+        return aggregate_embeddings(w_embeddings, method=self.ARGS.aggr)
 
 
 def aggregate_embeddings(embeddings, method):

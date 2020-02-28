@@ -9,3 +9,5 @@ Assignment2/tfidf_index
 Assignment2/word2vec/data_final
 Assignment2/filtered_docs/*
 Assignment2/vocabs/*
+Assignment2/tf-idf.json
+Assignment2/tfidf_index_150
