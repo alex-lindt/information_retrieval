@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import pytrec_eval
 import numpy as np
@@ -126,17 +127,57 @@ def doc2vec_run_and_evaluate(train_data, vector_size, window, max_vocab_size):
     print(f"76-100 : MAP {map_subset}, NDCG {ndcg_subset}")
 
 
+def read_grid_search_results(path='./doc2vec/results/doc2vec_gridsearch_results.txt'):
+    with open(path) as file:
+        text = file.readlines()
+    text = [t for t in text if ("###" in t or "All" in t or "76-" in t)]
+
+    # VES - W - MAXVOCAB
+    # all queries
+    res = {ves: {w: {vs: 0 for vs in [10000, 25000, 50000, 100000, 200000]}
+                 for w in [5, 10, 15, 20]}
+           for ves in [200, 300, 400, 500]}
+
+    for i in range(len(text)):
+
+        if i % 3 == 0:
+            r = {'map_a': 0, 'ndcg_a': 0, 'map_s': 0, 'ndcg_s': 0}
+
+            # get parameters
+            line1 = text[i].split(':')[1].split('_')
+            [w, ves, vs] = [int(re.sub("[^0-9]", "", t)) for t in line1][-3:]
+
+            # get results for subsets of queries
+            res[ves][w][vs] = round(float(text[i + 2].split(' ')[3][:-1]), 4)
+
+    return res
+
+def sort_highest(res_dict, n=5):
+    res = []
+
+    for ves in [200, 300, 400, 500]:
+        for w in [5, 10, 15, 20]:
+            for vs in [10000, 25000, 50000, 100000, 200000]:
+                if res_dict[ves][w][vs]:
+                    res.append(((ves, w, vs), res_dict[ves][w][vs]))
+
+    res = sorted(res, key=lambda x: -x[1])
+
+    return res[:n]
+
 
 if __name__ == "__main__":
+
 
     doc_path = "processed_docs.pkl"
     train_data = get_train_data(doc_path)
 
-    # Run with default parameters
-    doc2vec_run_and_evaluate(train_data,
-                             vector_size=400,
-                             window=8,
-                             max_vocab_size=None)
+    # (1) Run with default parameters
+    doc2vec_run_and_evaluate(train_data,vector_size=400, window=8, max_vocab_size=None)
 
-    # Run Grid Search
+    # (2) Run Grid Search
     # run_grid_search(doc_path)
+
+    # (3) Process Grid Search Results
+    res_dict = read_grid_search_results()
+    print(sort_highest(res_dict, n=5))
