@@ -83,50 +83,7 @@ Usage overview: word2vec_start.py
 
 ### Doc2Vec
 ### LSI and LDA
-`LSI_LDA.py` contains the code to train and evaluate the LSI and LDA models.
-```bash 
-usage: LSI_LDA.py [-h] [--save-dir SAVE_DIR] [--num_topics NUM_TOPICS]
-                  [--filter FILTER] [--model_type MODEL_TYPE]
-                  [--corpus_type CORPUS_TYPE] [--load_model LOAD_MODEL]
-                  [--path_model PATH_MODEL]
-                  [--load_tfidfmodel LOAD_TFIDFMODEL]
-                  [--path_tfidfmodel PATH_TFIDFMODEL]
-                  [--load_corpus LOAD_CORPUS] [--path_corpus PATH_CORPUS]
-                  [--load_dict LOAD_DICT] [--path_dict PATH_DICT]
-
-Arguments: 
-
--h                Show file usage
-
---save-dir        Where outputs are saved
---num_topics      Number of topics to find
---model_type      Either LSI or LSA
---corpus_type     Either BOW or TFIDF
-
---load_model      Load LSI/LDA trained model
---path_model      Path to saved LSI/LDA model
---load_tfidfmodel Load trained tfidf model
---path_tfidfmodel Path to saved tfidf model
---load_corpus     Load corpus
---path_corpus     Path to saved corpus
---load_dict       Load dictionary
---path_dict       Path to saved dict
-```
-
-#### Train and evaluate: 
-* *LSI BoW:*
-`python LSI_LDA.py --model_type LSI --corpus_type BOW `
-
-* *LSI TF-IDF:*
-`python LSI_LDA.py --model_type LSI --corpus_type TFIDF`
-
-* *LDA TF-IDF:*
-`python LSI_LDA.py --model_type LDA --corpus_type TFIDF`
-
-* The number of topics for training can be set by  e.g. `--num_topics 500`
-
-* Earlier saved corpora and/or models can be loaded using the load and path arguments. Note that if the tf-idf corpus is loaded, the corresponding tf-idf model should be provided as it is needed during evaluation time. 
-
+The jupyter notebook `LSI_LDA.ipynb` contains all the code needed to train and evaluate the LSI BOW, LSI TFIDF and LDA BOW models. Also it contains the code for the grid search over different topic numbers for LSI BOW and LSI TFIDF. Instructions for running the code are given in the notebook itself. 
 
 ## Authors
 
