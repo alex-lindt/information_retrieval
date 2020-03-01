@@ -1,9 +1,9 @@
-## IR1 Homework 2 - UvA
+# IR1 Homework 2 - UvA
 
-### Prerequisites
+## Prerequisites
 Anaconda: https://www.anaconda.com/distribution/
 
-### Getting Started 
+## Getting Started 
 ### CHECK WHETHER WE NEED TO ADD ANYTHING TO environment.yml
 Open the Anaconda prompt and move to this directory
 
@@ -18,10 +18,10 @@ And in order to deactivate the environment:
 conda deactivate
 ```
 
-### Running the models 
-#### Word2vec
-#### Doc2Vec
-#### LSI and LDA
+## Running the models 
+### Word2vec
+### Doc2Vec
+### LSI and LDA
 `LSI_LDA.py` contains the code to train and evaluate the LSI and LDA models.
 ```bash 
 usage: LSI_LDA.py [-h] [--save-dir SAVE_DIR] [--num_topics NUM_TOPICS]
@@ -52,7 +52,7 @@ Arguments:
 --path_dict			Path to saved dict
 ```
 
-##### Train and evaluate: 
+#### Train and evaluate: 
 * *LSI BoW:*
 `python LSI_LDA.py --model_type LSI --corpus_type BOW `
 
@@ -67,7 +67,7 @@ Arguments:
 * Earlier saved corpora and/or models can be loaded using the load and path arguments. Note that if the tf-idf corpus is loaded, the corresponding tf-idf model should be provided as it is needed during evaluation time. 
 
 
-### Authors
+## Authors
 
 - [Alexandra Lindt (12230642)]- alexandra.lindt@student.uva.nl
 - [David Biertimpel (12324418)]- david.biertimpel@student.uva.nl
