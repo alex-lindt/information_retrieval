@@ -53,18 +53,18 @@ Arguments:
 ```
 
 ##### Train and evaluate: 
- *LSI BoW:*
+* *LSI BoW:*
 `python LSI_LDA.py --model_type LSI --corpus_type BOW `
 
- *LSI TF-IDF:*
+* *LSI TF-IDF:*
 `python LSI_LDA.py --model_type LSI --corpus_type TFIDF`
 
- *LDA TF-IDF:*
+* *LDA TF-IDF:*
 `python LSI_LDA.py --model_type LDA --corpus_type TFIDF`
 
-The number of topics for training can be set by  e.g. `--num_topics 500`
+* The number of topics for training can be set by  e.g. `--num_topics 500`
 
-Earlier saved corpora and/or models can be loaded using the load and path arguments. Note that if the tf-idf corpus is loaded, the corresponding tf-idf model should be provided as it is needed during evaluation time. 
+* Earlier saved corpora and/or models can be loaded using the load and path arguments. Note that if the tf-idf corpus is loaded, the corresponding tf-idf model should be provided as it is needed during evaluation time. 
 
 
 ### Authors
