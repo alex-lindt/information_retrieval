@@ -43,7 +43,7 @@ Arguments:
 --corpus_type     Either BOW or TFIDF
 
 --load_model      Load LSI/LDA trained model
---path_model		  Path to saved LSI/LDA model
+--path_model      Path to saved LSI/LDA model
 --load_tfidfmodel Load trained tfidf model
 --path_tfidfmodel Path to saved tfidf model
 --load_corpus     Load corpus
