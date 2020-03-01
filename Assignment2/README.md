@@ -83,7 +83,7 @@ Usage overview: word2vec_start.py
 
 ### Doc2Vec
 ### LSI and LDA
-The jupyter notebook `LSI_LDA.ipynb` contains all the code needed to train, evaluate the LSI BOW, LSI TFIDF and LDA BOW models. Also it contains the code for the grid search over different topic numbers for LSI BOW and LSI TFIDF. Instructions for running the code are given in the notebook itself. 
+The jupyter notebook `LSI_LDA.ipynb` contains all the code needed to train and evaluate the LSI BOW, LSI TFIDF and LDA BOW models. Also it contains the code for the grid search over different topic numbers for LSI BOW and LSI TFIDF. Instructions for running the code are given in the notebook itself. 
 
 ## Authors
 
