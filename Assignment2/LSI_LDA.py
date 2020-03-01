@@ -6,6 +6,7 @@ from gensim import similarities
 from collections import defaultdict
 from tqdm import tqdm
 
+import torch
 import argparse
 import json
 import os 
@@ -104,20 +105,29 @@ def rank_docs(query, model, doc_ids, dictionary, corpus_modelspace, tfidf_model=
     q_modelspace = model[q_cspace]
     
     if isinstance(model, LsiModel):
-        print("lsi")
-        scores = index[q_modelspace] # TODO this should be the absolute value
+        ## LSI
+        scores = index[q_modelspace]
+
+        results = defaultdict(float)
+        for doc_id, score in zip(doc_ids, scores):
+          results[doc_id] = score
+
+        results = list(results.items())
+        results.sort(key=lambda _: -_[1])
 
     elif isinstance(model, LdaModel):
-      print("lda")
-      # TODO: cast to float for pytrec
-      scores = - kullback_leibler(q_modelspace, corpus_modelspace)
+        ## LDA
+        doc_ids = list(doc_ids)
+        scores = []
+        # have to use the for loop, otherwise kullback_leibler has problems
+        for d in corpus_modelspace:
+            scores.append(float(-kullback_leibler(q_modelspace, d)))
 
-    results = defaultdict(float)
-    for doc_id, score in zip(doc_ids, scores):
-      results[doc_id] = score
+        # have to use torch here to do this more efficiently
+        order = torch.Tensor(scores).argsort(descending=True).numpy()
+        ordered_results = [(doc_ids[i], scores[i]) for i in order]
+        results = dict(ordered_results)
 
-    results = list(results.items())
-    results.sort(key=lambda _: -_[1])
     return results
 
 
