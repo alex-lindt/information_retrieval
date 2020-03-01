@@ -6,14 +6,15 @@ from gensim import similarities
 from collections import defaultdict
 from tqdm import tqdm
 
-import torch
 import argparse
+import os
+import pytrec_eval
+import numpy as np
+import torch
 import json
-import os 
-# import pytrec
 import time
 
-
+from utils import evaluate
 import read_ap
 import download_ap
 
@@ -76,7 +77,9 @@ def train(corpus, dictionary):
     print("Training model ...")
     print("Number of topics:", ARGS.num_topics)
 
-    if ARGS.model_type == "LSI": 
+    if ARGS.model_type == "LSI":
+        print(corpus)
+        print(ARGS.num_topics)
         model = LsiModel(corpus, id2word=dictionary, num_topics=ARGS.num_topics)
         model.save(ARGS.save_dir + "/models/"+ARGS.model_type+"_"+ARGS.corpus_type+".mm")
 
@@ -87,11 +90,6 @@ def train(corpus, dictionary):
     return model 
 
 
-########################################################
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#### NEEDS TO BE UPDATED IN THE END ############
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-########################################################
 def rank_docs(query, model, doc_ids, dictionary, corpus_modelspace, tfidf_model=None, index=None):
     query_prepro = read_ap.process_text(query)
 
@@ -131,6 +129,71 @@ def rank_docs(query, model, doc_ids, dictionary, corpus_modelspace, tfidf_model=
     return results
 
 
+def evaluate_queries(model, doc_ids, dictionary, corpus_modelspace, tfidf, index, save_path='LSI'):
+    qrels, queries = read_ap.read_qrels()
+
+    overall_result = {}
+
+    for query_id, query in tqdm(queries.items()):
+        results = rank_docs(query, model, doc_ids, dictionary, corpus_modelspace, tfidf_model=tfidf, index=index)
+        overall_result[query_id] = dict(results)
+
+        if int(query_id) not in np.arange(76, 101):
+            evaluate.write_trec_results(query_id, results, save_path)
+
+    evaluator = pytrec_eval.RelevanceEvaluator(qrels, {'map', 'ndcg'})
+    metrics = evaluator.evaluate(overall_result)
+
+    return metrics
+
+def run_evaluation(model, corpus, doc_ids, tfidf):
+    corpus_modelspace = model[corpus]
+    index = similarities.MatrixSimilarity(corpus_modelspace, dtype=float)  # ~3min
+    metrics = evaluate_queries(model, doc_ids, dictionary, corpus_modelspace, tfidf, index)
+
+    map_all = np.average([m['map'] for m in metrics.values()])
+    ndcg_all = np.average([m['ndcg'] for m in metrics.values()])
+
+    map_val = np.average([m['map'] for did, m in metrics.items() if int(did) in range(76, 101)])
+    ndcg_val = np.average([m['ndcg'] for did, m in metrics.items() if int(did) in range(76, 101)])
+
+    print((map_all, ndcg_all), (map_val, ndcg_val))
+
+    return metrics
+
+def train_LSI(corpus, name, num_topics=500):
+    tic = time.perf_counter()
+
+    LSI_model = LsiModel(corpus, id2word=dictionary, num_topics=num_topics)
+
+    toc = time.perf_counter()
+    print(f"Trained LSI {name} in {toc - tic:0.4f} seconds")  # ~4min
+
+    LSI_model.save(f'/LSI_{name}_model_{num_topics}.mm')
+
+    return LSI_model
+
+
+def grid_search_lsi(corpus, tfidf, name):
+
+    assert name in ['bow', 'tfidf']
+
+    for num_topics in [10, 50, 100, 500, 1000, 2000]:
+
+        print("--training")
+        lsi_model = train_LSI(corpus, name, num_topics=num_topics)
+
+        print("--evaluating")
+        # Run this if you want to evaluate LSI tfidf model
+        lsi_metrics = run_evaluation(model=lsi_model,
+                                     corpus=corpus,
+                                     doc_ids=docs_by_id.keys(),
+                                     tfidf=tfidf)
+
+        with open(f'LSI_{name}_{num_topics}', "w") as writer:
+            json.dump(lsi_metrics, writer, indent=1)
+
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -156,8 +219,6 @@ if __name__ == "__main__":
     parser.add_argument('--path_corpus', type=str, default="./LSI_LDA/corpora/corpus_bow.mm", help="Path to saved corpus")
     parser.add_argument('--load_dict', type=bool, default=False, help="Load dictionary")
     parser.add_argument('--path_dict', type=str, default="./LSI_LDA/corpora/dictionary.dict", help="Path to saved dict")
-
-    
 
     ARGS = parser.parse_args()
 
@@ -205,7 +266,6 @@ if __name__ == "__main__":
 
     with open(ARGS.save_dir + "/" + ARGS.model_type + "_" + ARGS.corpus_type + "_top5_topics.json", "w") as writer:
         json.dump(top5_topics, writer, indent=1)
-
 
 
 
