@@ -13,7 +13,6 @@ from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 
 import read_ap
 
-
 class Logger(CallbackAny2Vec):
     def __init__(self):
         self.epoch = 0
@@ -36,7 +35,7 @@ def get_train_data(doc_path):
     assert os.path.isfile(doc_path)
 
     # load pre-processed text
-    # i.e. stemmed / tokenized / stop words removed / rarest 150 removed
+    # i.e. stemmed / tokenized / stop words removed
     with open(doc_path, "rb") as reader:
         docs_by_id = pkl.load(reader)
 
@@ -72,24 +71,26 @@ def train_doc2vec(train_data, epochs, window, vector_size, max_vocab_size):
 
     return model, description
 
+def rank_query_given_document(query_text, doc2vec_model):
+    #   Function that ranks documents given a query
+    query_repr = read_ap.process_text(query_text)
+    query_vector = doc2vec_model.infer_vector(query_repr)
+
+    results = doc2vec_model.docvecs.most_similar([query_vector],
+                                                 topn=len(doc2vec_model.docvecs))
+    return results
 
 def evaluate_doc2vec(doc2vec_model, description, test_subset=False):
+
     qrels, queries = read_ap.read_qrels()
 
     if test_subset:
         queries = {qid: q for qid, q in queries.items() if int(qid) < 101 and int(qid) > 75}
 
     overall_ser = {}
-
     # collect results
     for qid in queries:
-        query_text = queries[qid]
-        query_repr = read_ap.process_text(query_text)
-        query_vector = doc2vec_model.infer_vector(query_repr)
-
-        results = doc2vec_model.docvecs.most_similar([query_vector],
-                                                     topn=len(doc2vec_model.docvecs))
-
+        results = rank_query_given_document(queries[qid], doc2vec_model)
         overall_ser[qid] = dict(results)
 
         if int(qid) not in np.arange(76, 101):
@@ -104,16 +105,6 @@ def evaluate_doc2vec(doc2vec_model, description, test_subset=False):
 
     return metrics
 
-
-def run_grid_search(doc_path):
-    train_data = get_train_data(doc_path)
-
-    for vector_size in [200, 300, 400, 500]:
-        for window in [5, 10, 15, 20]:
-            for max_vocab_size in np.array([10, 25, 50, 100, 200]) * 1000:
-                doc2vec_run_and_evaluate(train_data, vector_size, window, max_vocab_size)
-
-
 def doc2vec_run_and_evaluate(train_data, vector_size, window, max_vocab_size):
     model, description = train_doc2vec(train_data,
                                        epochs=2,
@@ -127,58 +118,33 @@ def doc2vec_run_and_evaluate(train_data, vector_size, window, max_vocab_size):
     map_all = np.average([m['map'] for m in metrics.values()])
     ndcg_all = np.average([m['ndcg'] for m in metrics.values()])
 
-    metrics = evaluate_doc2vec(model, description, test_subset=True)
-    map_subset = np.average([m['map'] for m in metrics.values()])
-    ndcg_subset = np.average([m['ndcg'] for m in metrics.values()])
+    map_subset = np.average([m['map'] for qid, m in metrics.items()
+                             if int(qid) in range(76,101)])
+
+    ndcg_subset = np.average([m['map'] for qid, m in metrics.items()
+                              if int(qid) in range(76,101)])
 
     print(f"\n### EVALUATING :{description}")
     print(f"All    : MAP {map_all}, NDCG {ndcg_all}")
     print(f"76-100 : MAP {map_subset}, NDCG {ndcg_subset}")
 
+def run_grid_search(doc_path):
+    train_data = get_train_data(doc_path)
 
-def read_grid_search_results(path='./doc2vec/results/doc2vec_gridsearch_results.txt'):
-    with open(path) as file:
-        text = file.readlines()
-    text = [t for t in text if ("###" in t or "All" in t or "76-" in t)]
-
-    # VES - W - MAXVOCAB
-    # all queries
-    res = {ves: {w: {vs: 0 for vs in [10000, 25000, 50000, 100000, 200000]}
-                 for w in [5, 10, 15, 20]}
-           for ves in [200, 300, 400, 500]}
-
-    for i in range(len(text)):
-
-        if i % 3 == 0:
-            r = {'map_a': 0, 'ndcg_a': 0, 'map_s': 0, 'ndcg_s': 0}
-
-            # get parameters
-            line1 = text[i].split(':')[1].split('_')
-            [w, ves, vs] = [int(re.sub("[^0-9]", "", t)) for t in line1][-3:]
-
-            # get results for subsets of queries
-            res[ves][w][vs] = round(float(text[i + 2].split(' ')[3][:-1]), 4)
-
-    return res
-
-
-def sort_highest(res_dict, n=5):
-    res = []
-
-    for ves in [200, 300, 400, 500]:
-        for w in [5, 10, 15, 20]:
-            for vs in [10000, 25000, 50000, 100000, 200000]:
-                if res_dict[ves][w][vs]:
-                    res.append(((ves, w, vs), res_dict[ves][w][vs]))
-
-    res = sorted(res, key=lambda x: -x[1])
-
-    return res[:n]
+    for vector_size in [200, 300, 400, 500]:
+        for window in [5, 10, 15, 20]:
+            for max_vocab_size in np.array([10, 25, 50, 100, 200]) * 1000:
+                doc2vec_run_and_evaluate(train_data, vector_size, window, max_vocab_size)
 
 
 if __name__ == "__main__":
-    doc_path = "processed_docs.pkl"
-    train_data = get_train_data(doc_path)
+
+    if not os.path.exists("./doc2vec"):
+        os.mkdir("./doc2vec")
+        os.mkdir("./doc2vec/results")
+        os.mkdir("./doc2vec/models")
+
+    train_data = get_train_data("processed_docs.pkl")
 
     # (1) Run with default parameters
     doc2vec_run_and_evaluate(train_data, vector_size=400, window=8, max_vocab_size=None)
