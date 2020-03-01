@@ -1,16 +1,16 @@
 import os
+import json
 import random
 import pickle as pkl
 from collections import Counter
 
 import itertools
+from tqdm import tqdm
 
 import numpy as np
 
 from gensim.corpora import Dictionary
 from six import PY3, iteritems, iterkeys, itervalues, string_types
-
-from tqdm import tqdm
 
 import read_ap
 import download_ap
@@ -19,9 +19,9 @@ from gensim.parsing.preprocessing import remove_stopwords
 
 
 def get_w2v_data(ARGS):
-    data_path = os.path.join(ARGS.save_dir, "data_{}")
-    if os.path.exists(data_path.format(ARGS.data_load_iter)):
-        return load_pickle(data_path.format(ARGS.data_load_iter))
+    data_path = os.path.join(ARGS.save_dir, f"data_{ARGS.freq_thresh}_{ARGS.data_load_iter}")
+    if os.path.exists(data_path):
+        return load_pickle(data_path)
     else:
         infrequent_words = load_pickle(f"vocabs/vocab_{ARGS.freq_thresh}.pkl")
         return build_w2v_data(data_path, infrequent_words, ARGS, start_iter=ARGS.start_iter)
@@ -80,29 +80,33 @@ def build_w2v_data(data_path, vocabulary, ARGS, start_iter=0):
             data["context"].append(word_context)
             data["negatives"].append(negative_sample)  # does it make a difference that we don't do this in the end?
 
-        if i >= 60000:
+        if i >= 100000:
             break
 
         # if (start_iter + i + 1) % 80000 == 0:
         #     save_pickle(data, data_path.format(start_iter + i))
 
-    save_pickle(data, data_path.format("final"))
+    save_pickle(data, data_path.format(ARGS.freq_thresh, "final"))
 
     return data
 
 
-def remove_frequent_words(freq_thresh):
+def remove_infrequent_words(ARGS):
     print("Remove infrequent words...")
     # ensure dataset is downloaded
     download_ap.download_dataset()
     # pre-process the text
     docs_by_id = read_ap.get_processed_docs()
 
-    # infrequent_words = load_pickle(f"infrequent_words_{freq}.pkl")
+    if ARGS.keep_top_n:
+        word_dict = Dictionary(docs_by_id.values())
+        word_dict.filter_extremes(no_below=1, no_above=164557, keep_n=ARGS.freq_thresh)
+        token2id = word_dict.token2id
+    else:
+        total_counts = Counter(itertools.chain.from_iterable(docs_by_id.values()))
+        infrequent_words = Counter(el for el in total_counts.elements() if total_counts[el] >= ARGS.freq_thresh)
+        token2id = {w: i for i, w in enumerate(infrequent_words)}
 
-    total_counts = Counter(itertools.chain.from_iterable(docs_by_id.values()))
-    infrequent_words = Counter(el for el in total_counts.elements() if total_counts[el] >= freq_thresh)
-    token2id = {w: i for i, w in enumerate(infrequent_words)}
     id2token = {i: w for w, i in token2id.items()}
     vocab = {
         "id2token": id2token,
@@ -114,13 +118,8 @@ def remove_frequent_words(freq_thresh):
         doc = [w for w in _doc if w in token2id]
         new_docs[doc_id] = doc
 
-    if not os.path.exists("filtered_docs/"):
-        os.makedirs("filtered_docs/")
-    if not os.path.exists("vocabs/"):
-        os.makedirs("vocabs/")
-
-    save_pickle(vocab, f"vocabs/vocab_{freq_thresh}.pkl")
-    save_pickle(new_docs, f"filtered_docs/filtered_docs_{freq_thresh}.pkl")
+    save_pickle(vocab, f"vocabs/vocab_{ARGS.freq_thresh}.pkl")
+    save_pickle(new_docs, f"filtered_docs/filtered_docs_{ARGS.freq_thresh}.pkl")
 
 
 def load_pickle(path_name):
@@ -132,3 +131,9 @@ def load_pickle(path_name):
 def save_pickle(data, path_name):
     with open(path_name, "wb") as writer:
         pkl.dump(data, writer)
+
+
+def load_json(path):
+    with open(path) as f:
+        json_dict = json.load(f)
+    return json_dict

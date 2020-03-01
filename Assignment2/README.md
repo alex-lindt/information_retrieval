@@ -35,7 +35,7 @@ usage: LSI_LDA.py [-h] [--save-dir SAVE_DIR] [--num_topics NUM_TOPICS]
 
 Arguments: 
 
--h                Shows file usage
+-h                Show file usage
 
 --save-dir        Where outputs are saved
 --num_topics      Number of topics to find

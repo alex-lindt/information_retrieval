@@ -6,10 +6,13 @@ import numpy as np
 from tqdm import tqdm
 import pickle as pkl
 
+from utils import evaluate
+
 from gensim.models.callbacks import CallbackAny2Vec
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 
 import read_ap
+
 
 class Logger(CallbackAny2Vec):
     def __init__(self):
@@ -28,6 +31,7 @@ class Logger(CallbackAny2Vec):
         self.batch = 0
         self.epoch += 1
 
+
 def get_train_data(doc_path):
     assert os.path.isfile(doc_path)
 
@@ -41,6 +45,7 @@ def get_train_data(doc_path):
     train_data = [TaggedDocument(doc, [doc_id]) for doc_id, doc in docs_by_id.items()]
     print(f"Lenght of Training Data: {len(train_data)}")
     return train_data
+
 
 def train_doc2vec(train_data, epochs, window, vector_size, max_vocab_size):
     print("#" * 20)
@@ -67,8 +72,8 @@ def train_doc2vec(train_data, epochs, window, vector_size, max_vocab_size):
 
     return model, description
 
-def evaluate_doc2vec(doc2vec_model, description, test_subset=False):
 
+def evaluate_doc2vec(doc2vec_model, description, test_subset=False):
     qrels, queries = read_ap.read_qrels()
 
     if test_subset:
@@ -87,6 +92,9 @@ def evaluate_doc2vec(doc2vec_model, description, test_subset=False):
 
         overall_ser[qid] = dict(results)
 
+        if int(qid) not in np.arange(76, 101):
+            evaluate.write_trec_results(qid, results, f"./doc2vec/results/")
+
     evaluator = pytrec_eval.RelevanceEvaluator(qrels, {'map', 'ndcg'})
     metrics = evaluator.evaluate(overall_ser)
 
@@ -96,16 +104,17 @@ def evaluate_doc2vec(doc2vec_model, description, test_subset=False):
 
     return metrics
 
+
 def run_grid_search(doc_path):
     train_data = get_train_data(doc_path)
 
     for vector_size in [200, 300, 400, 500]:
-        for window in [5,10, 15, 20]:
+        for window in [5, 10, 15, 20]:
             for max_vocab_size in np.array([10, 25, 50, 100, 200]) * 1000:
                 doc2vec_run_and_evaluate(train_data, vector_size, window, max_vocab_size)
 
-def doc2vec_run_and_evaluate(train_data, vector_size, window, max_vocab_size):
 
+def doc2vec_run_and_evaluate(train_data, vector_size, window, max_vocab_size):
     model, description = train_doc2vec(train_data,
                                        epochs=2,
                                        window=window,
@@ -152,6 +161,7 @@ def read_grid_search_results(path='./doc2vec/results/doc2vec_gridsearch_results.
 
     return res
 
+
 def sort_highest(res_dict, n=5):
     res = []
 
@@ -167,17 +177,15 @@ def sort_highest(res_dict, n=5):
 
 
 if __name__ == "__main__":
-
-
     doc_path = "processed_docs.pkl"
     train_data = get_train_data(doc_path)
 
     # (1) Run with default parameters
-    doc2vec_run_and_evaluate(train_data,vector_size=400, window=8, max_vocab_size=None)
+    doc2vec_run_and_evaluate(train_data, vector_size=300, window=10, max_vocab_size=200000)
 
     # (2) Run Grid Search
     # run_grid_search(doc_path)
 
     # (3) Process Grid Search Results
-    res_dict = read_grid_search_results()
-    print(sort_highest(res_dict, n=5))
+    # res_dict = read_grid_search_results()
+    # print(sort_highest(res_dict, n=5))
