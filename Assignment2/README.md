@@ -35,21 +35,21 @@ usage: LSI_LDA.py [-h] [--save-dir SAVE_DIR] [--num_topics NUM_TOPICS]
 
 Arguments: 
 
--h					Shows file usage
+-h					      Shows file usage
 
---save-dir			Where outputs are saved
---num_topics 		Number of topics to find
---model_type 		Either LSI or LSA
+--save-dir			  Where outputs are saved
+--num_topics 		  Number of topics to find
+--model_type 		  Either LSI or LSA
 --corpus_type 		Either BOW or TFIDF
 
---load_model 		Load LSI/LDA trained model
---path_model		Path to saved LSI/LDA model
+--load_model 		  Load LSI/LDA trained model
+--path_model		  Path to saved LSI/LDA model
 --load_tfidfmodel	Load trained tfidf model
 --path_tfidfmodel	Path to saved tfidf model
---load_corpus		Load corpus
---path_corpus		Path to saved corpus
---load_dict			Load dictionary
---path_dict			Path to saved dict
+--load_corpus		  Load corpus
+--path_corpus		  Path to saved corpus
+--load_dict			  Load dictionary
+--path_dict			  Path to saved dict
 ```
 
 #### Train and evaluate: 
