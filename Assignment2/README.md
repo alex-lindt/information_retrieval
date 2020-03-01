@@ -4,7 +4,6 @@
 Anaconda: https://www.anaconda.com/distribution/
 
 ## Getting Started 
-### CHECK WHETHER WE NEED TO ADD ANYTHING TO environment.yml
 Open the Anaconda prompt and move to this directory
 
 First create and activate the provided environment by using the following commands:
@@ -82,6 +81,22 @@ Usage overview: word2vec_start.py
 ```
 
 ### Doc2Vec
+Training and evaluating the default setting model:
+`python doc2vec.py `
+
+If you want to change the model settings for training and evaluating a single model, just set them in the following line:
+```bash
+# (1) Run with default parameters
+doc2vec_run_and_evaluate(train_data, vector_size=400, window=8, max_vocab_size=None)
+```
+If you want to run the grid search, just comment in the following line:
+```bash
+# (2) Run Grid Search
+# run_grid_search(doc_path)
+```
+
+
+
 ### LSI and LDA
 The jupyter notebook `LSI_LDA.ipynb` contains all the code needed to train and evaluate the LSI BOW, LSI TFIDF and LDA BOW models. Also it contains the code for the grid search over different topic numbers for LSI BOW and LSI TFIDF. Instructions for running the code are given in the notebook itself. 
 
