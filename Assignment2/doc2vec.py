@@ -181,7 +181,7 @@ if __name__ == "__main__":
     train_data = get_train_data(doc_path)
 
     # (1) Run with default parameters
-    doc2vec_run_and_evaluate(train_data, vector_size=300, window=10, max_vocab_size=200000)
+    doc2vec_run_and_evaluate(train_data, vector_size=400, window=8, max_vocab_size=None)
 
     # (2) Run Grid Search
     # run_grid_search(doc_path)

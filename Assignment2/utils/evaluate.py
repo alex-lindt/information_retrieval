@@ -45,6 +45,7 @@ def test_significance(results_1, results_2, metric):
 def calc_mean_metrics(metrics_dict):
     maps_all, ndcg_all = [], []
     maps_valid, ndcg_valid = [], []
+    maps_test, ndcg_test = [], []
     for id, query in metrics_dict.items():
         map = query["map"]
         ndcg = query["ndcg"]
@@ -54,12 +55,19 @@ def calc_mean_metrics(metrics_dict):
             maps_valid.append(map)
             ndcg_valid.append(ndcg)
 
+        if int(id) not in np.arange(76, 101):
+            maps_test.append(map)
+            ndcg_test.append(ndcg)
+
     print("----" * 10)
     print(f"Mean MAP (all): {np.mean(maps_all)}")
     print(f"Mean NDCG (all): {np.mean(ndcg_all)}")
     print("----" * 10)
     print(f"Mean MAP (76-100): {np.mean(maps_valid)}")
     print(f"Mean NDCG (76-100): {np.mean(ndcg_valid)}")
+    print("----" * 10)
+    print(f"Mean MAP (test): {np.mean(maps_test)}")
+    print(f"Mean NDCG (test): {np.mean(ndcg_test)}")
     print("----" * 10)
 
 
@@ -72,6 +80,7 @@ def write_trec_results(qid, results, path):
                 break
             the_file.write(f'{qid} Q0 {doc_id} {rank + 1} {score} STANDARD \n')
 
+
 # def write_result_file():
 #     with open('somefile.txt', 'a') as the_file:
 #         for i in range(150 * 160000):
@@ -81,3 +90,9 @@ def write_trec_results(qid, results, path):
 #         for i in range(50 * 160000):
 #             the_file.write('query-id Q0 document-id rank score STANDARD \n')
 #
+
+
+if __name__ == "__main__":
+    path = "../result_json/word2vec_metrics.json"
+    metric = data_processing.load_json(path)
+    calc_mean_metrics(metric)

@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
     # Vocabulary
     parser.add_argument('--keep-top-n', type=bool, default=False,
-                        help='Keep top-n frequent words. n will be the (arg) --vocab-size')
+                        help='Keep top-n frequent words. n will be (arg) --freq-thresh => vocab-size')
     parser.add_argument('--freq-thresh', type=int, default=150,
                         help="Filter infrequent words. "
                              "If keep-top-n=True: Keep N top freq words (directly determines vocab-size)"

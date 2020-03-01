@@ -7,9 +7,10 @@
 Assignment2/processed_docs.pkl
 Assignment2/tfidf_index
 Assignment2/word2vec/data_final
+Assignment2/doc2vec/models/
 Assignment2/word2vec/models/*
 Assignment2/filtered_docs/*
-Assignment2/vocabs/*
 Assignment2/word2vec/data*
+Assignment2/vocabs/*
 Assignment2/tf-idf.json
 Assignment2/tfidf_index_150
