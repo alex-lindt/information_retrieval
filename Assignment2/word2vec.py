@@ -156,9 +156,7 @@ class W2VRetrieval:
         doc_ids, doc_embeddings = self.build_doc_embeddings()
 
         print(f"Running Word2Vec Evaluation, ww-size: {self.ARGS.ww_size}, vocab-size: {len(self.vocab['id2token'])}")
-        for qid in tqdm(qr  "map": 0.0003409593609120817,
-  "ndcg": 0.2510072969802044
-els):
+        for qid in tqdm(qrels):
             query_text = queries[qid]
 
             results = self.match_query_against_docs(query_text, doc_ids, doc_embeddings)
@@ -235,9 +233,6 @@ def train(ARGS, data_loader, model):
 
     with open(os.path.join(save_folder, "losses.json"), 'w') as fp:
         json.dump(losses, fp)
-
-
-
 
 # TODO:
 #       T-tests on LSI models before after
