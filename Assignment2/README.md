@@ -69,6 +69,6 @@ Arguments:
 
 ## Authors
 
-- [Alexandra Lindt (12230642)]- alexandra.lindt@student.uva.nl
-- [David Biertimpel (12324418)]- david.biertimpel@student.uva.nl
-- [Vanessa Botha (10754954)] - vanessa.botha@student.uva.nl
+- Alexandra Lindt (12230642)- alexandra.lindt@student.uva.nl
+- David Biertimpel (12324418)- david.biertimpel@student.uva.nl
+- Vanessa Botha (10754954) - vanessa.botha@student.uva.nl
