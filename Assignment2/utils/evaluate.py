@@ -20,19 +20,6 @@ def ttest_two_models(path1, path2):
         print("-----" * 10)
 
 
-#   TODO - Ttest combos:
-#          TF-IDF - Word2Vec
-#          TF-IDF - Doc2Vec
-#          TF-IDF - LSIBow
-#          TF-IDF - LSI-TF-IDF
-#          Word2Vec - Doc2Vec
-#          Word2Vec - LSIBow
-#          Word2Vec - LSI-TF-IDF
-#          Doc2Vec - LSIBow
-#          Doc2Vec - LSI-TF-IDF
-#          LSIBow - LSI-TF-IDF
-
-
 def test_significance(results_1, results_2, metric):
     query_ids = list(set(results_1.keys()) & set(results_2.keys()))
 
@@ -81,18 +68,7 @@ def write_trec_results(qid, results, path):
             the_file.write(f'{qid} Q0 {doc_id} {rank + 1} {score} STANDARD \n')
 
 
-# def write_result_file():
-#     with open('somefile.txt', 'a') as the_file:
-#         for i in range(150 * 160000):
-#             the_file.write('query-id Q0 document-id rank score STANDARD \n')
-#
-#     with open('somefile1.txt', 'a') as the_file:
-#         for i in range(50 * 160000):
-#             the_file.write('query-id Q0 document-id rank score STANDARD \n')
-#
-
-
 if __name__ == "__main__":
-    path = "../result_json/word2vec_metrics.json"
+    path = "../result_json/word2vec_metrics_not_tuned.json"
     metric = data_processing.load_json(path)
     calc_mean_metrics(metric)

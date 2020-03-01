@@ -233,10 +233,3 @@ def train(ARGS, data_loader, model):
 
     with open(os.path.join(save_folder, "losses.json"), 'w') as fp:
         json.dump(losses, fp)
-
-# TODO:
-#       T-tests on LSI models before after
-#       4.3 run word2vec and doc2vec on correct test data
-#       TQ 2.1 & 2.2
-
-# 25000 vocab, embed 200, window size 20

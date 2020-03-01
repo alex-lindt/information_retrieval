@@ -12,8 +12,8 @@ import numpy as np
 from gensim.corpora import Dictionary
 from six import PY3, iteritems, iterkeys, itervalues, string_types
 
-import read_ap
-import download_ap
+# import read_ap
+# import download_ap
 
 from gensim.parsing.preprocessing import remove_stopwords
 
