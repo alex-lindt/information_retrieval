@@ -89,7 +89,7 @@ If you want to change the model settings for training and evaluating a single mo
 # (1) Run with default parameters
 doc2vec_run_and_evaluate(train_data, vector_size=400, window=8, max_vocab_size=None)
 ```
-If you want to run the grid search, jsut comment in the following line:
+If you want to run the grid search, just comment in the following line:
 ```bash
 # (2) Run Grid Search
 # run_grid_search(doc_path)
