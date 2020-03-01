@@ -37,7 +37,7 @@ def get_dict(docs):
         dictionary = Dictionary(docs)
 
         if ARGS.filter:
-            # print("lalallala")
+            print("Filter extremes")
             dictionary.filter_extremes(no_below=25, no_above=0.5)
 
         dictionary.save(ARGS.save_dir + '/corpora/dictionary.dict')  
