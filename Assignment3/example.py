@@ -40,6 +40,7 @@ print('Scores for query %d: %s' % (qid, all_scores[s_i:e_i]))
 print('Ranking for query %d: %s' % (qid, all_rankings[s_i:e_i]))
 print('Inverted ranking for query %d: %s' % (qid, all_inverted_rankings[s_i:e_i]))
 
+validation_scores = np.dot(data.validation.feature_matrix, random_model)
 print('------')
 print('Evaluation on entire validation partition.')
-results = evl.evaluate(data.validation, all_scores, print_results=True)
+results = evl.evaluate(data.validation, validation_scores, print_results=True)
