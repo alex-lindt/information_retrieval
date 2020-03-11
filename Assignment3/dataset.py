@@ -8,7 +8,6 @@ import requests
 import numpy as np
 from tqdm import tqdm
 
-
 FOLDDATA_WRITE_VERSION = 4
 
 
@@ -21,7 +20,6 @@ def get_dataset(num_folds=1,
                 num_nonzero_feat=519,
                 num_unique_feat=501,
                 query_normalized=False):
-
     fold_paths = ["./dataset"]
     return DataSet(
         "ir1-2020",
@@ -34,7 +32,6 @@ def get_dataset(num_folds=1,
 
 
 class DataSet(object):
-
     """
     Class designed to manage meta-data for datasets.
     """
@@ -83,12 +80,12 @@ class DataFoldSplit(object):
 
     def query_range(self, query_index):
         s_i = self.doclist_ranges[query_index]
-        e_i = self.doclist_ranges[query_index+1]
+        e_i = self.doclist_ranges[query_index + 1]
         return s_i, e_i
 
     def query_size(self, query_index):
         s_i = self.doclist_ranges[query_index]
-        e_i = self.doclist_ranges[query_index+1]
+        e_i = self.doclist_ranges[query_index + 1]
         return e_i - s_i
 
     def query_sizes(self):
@@ -96,18 +93,18 @@ class DataFoldSplit(object):
 
     def query_labels(self, query_index):
         s_i = self.doclist_ranges[query_index]
-        e_i = self.doclist_ranges[query_index+1]
+        e_i = self.doclist_ranges[query_index + 1]
         return self.label_vector[s_i:e_i]
 
     def query_feat(self, query_index):
         s_i = self.doclist_ranges[query_index]
-        e_i = self.doclist_ranges[query_index+1]
+        e_i = self.doclist_ranges[query_index + 1]
         return self.feature_matrix[s_i:e_i, :]
 
     def doc_feat(self, query_index, doc_index):
         s_i = self.doclist_ranges[query_index]
-        e_i = self.doclist_ranges[query_index+1]
-        assert s_i + doc_index < self.doclist_ranges[query_index+1]
+        e_i = self.doclist_ranges[query_index + 1]
+        assert s_i + doc_index < self.doclist_ranges[query_index + 1]
         return self.feature_matrix[s_i + doc_index, :]
 
     def doc_str(self, query_index, doc_index):
@@ -118,7 +115,6 @@ class DataFoldSplit(object):
             doc_str += '%s:%f ' % (
                 self.datafold.feature_map[f_i], doc_feat[f_i])
         return doc_str
-
 
 
 class DataFold(object):
@@ -219,8 +215,8 @@ class DataFold(object):
 
     def _normalize_feat(self, query_ranges, feature_matrix):
         non_zero_feat = np.zeros(feature_matrix.shape[1], dtype=bool)
-        for qid in range(query_ranges.shape[0]-1):
-            s_i, e_i = query_ranges[qid:qid+2]
+        for qid in range(query_ranges.shape[0] - 1):
+            s_i, e_i = query_ranges[qid:qid + 2]
             cur_feat = feature_matrix[s_i:e_i, :]
             min_q = np.amin(cur_feat, axis=0)
             max_q = np.amax(cur_feat, axis=0)
