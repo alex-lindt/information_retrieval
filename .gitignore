@@ -14,3 +14,5 @@ Assignment2/word2vec/data*
 Assignment2/vocabs/*
 Assignment2/tf-idf.json
 Assignment2/tfidf_index_150
+Assignment3/dataset/*
+Assignment3/datasetbinarized_purged_querynorm.npz

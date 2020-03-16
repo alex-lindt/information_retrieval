@@ -5,8 +5,7 @@ import numpy as np
 # we will rank 5 items with the scores:
 scores = np.array([10., 8., 12., 9., 5.])
 
-(ranking,
- inverted_ranking) = rnk.rank_and_invert(scores)
+ranking, inverted_ranking = rnk.rank_and_invert(scores)
 
 print('Ranking the scores: %s' % scores)
 print('Resulting ranking: %s' % ranking)
