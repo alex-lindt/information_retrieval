@@ -69,7 +69,7 @@ class RankNetLoss(nn.Module):
 
             C_T += C
 
-        return C_T / len(pairs_all)
+        return C_T 
 
             
 
