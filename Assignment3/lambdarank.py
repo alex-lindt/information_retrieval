@@ -65,13 +65,11 @@ def train_lambda_rank(ARGS, data, model):
 
             lambdas = lambda_rank_loss(scores, y, ARGS.irm_type)
 
-            # loss_epoch.append(loss.item())
+            loss = (scores * lambdas.detach()).sum()
 
             # optimize
             optimizer.zero_grad()
-            # loss = scores * lambdas
-            # loss.sum().backward()
-            scores.backward(lambdas)
+            loss.backward()
             optimizer.step()
 
             scheduler.step()
@@ -93,11 +91,9 @@ def train_lambda_rank(ARGS, data, model):
 
 def lambda_rank_loss(scores, y, irm_type, gamma=1.0):
     _lamb = rank_net_loss(scores, y, gamma)
-    with torch.no_grad():
-        _irm = irm_delta(scores, y, irm_type)
-    _lamb_irm = _lamb * _irm
-    # _lamb_irm = _lamb
-    return _lamb_irm.sum(dim=1)[:, None]
+    _irm = irm_delta(scores, y, irm_type)
+    lamb_irm = _lamb * _irm
+    return lamb_irm.sum(dim=1)[:, None]
 
 
 def rank_net_loss(scores, y, gamma):
@@ -138,17 +134,23 @@ def irm_delta(scores, y, irm_type):
 
                 _ndcgs[i, j] = np.abs(_ndcg - ref_ndcg)
 
-        # print("......."*10)
-        # print(_ndcgs)
         return torch.FloatTensor(_ndcgs)
 
     elif irm_type == "err":
 
         grades = (np.power(2.0, labels) - 1) / 16
 
-        _err = np.zeros((scores.shape[0], scores.shape[0]))
-        for i in range(scores.shape[0]):
-            for j in range(scores.shape[0]):
+        err = []
+        past_p = []
+        for k in range(labels.shape[0]):
+            err_i = (1 / (k + 1)) * grades[k] * np.prod(past_p)
+            err.append(err_i)
+            past_p.append(1 - grades[k])
+        ref_err = np.sum(err)
+
+        _errs = np.zeros((labels.shape[0], labels.shape[0]))
+        for i in range(labels.shape[0]):
+            for j in range(labels.shape[0]):
 
                 _grades = np.copy(grades)
                 _grades[i], _grades[j] = _grades[j], _grades[i]
@@ -160,9 +162,9 @@ def irm_delta(scores, y, irm_type):
                     err.append(err_i)
                     past_p.append(1 - _grades[k])
 
-                _err[i, j] = np.sum(err)
+                _errs[i, j] = np.abs(np.sum(err) - ref_err)
 
-        return torch.FloatTensor(_err)
+        return torch.FloatTensor(_errs)
 
 
 def create_matrices(scores, gamma, y):
@@ -206,6 +208,7 @@ def sample_batch(data_split, queries, device):
     labels = data_split.query_labels(qid)
 
     return torch.Tensor(qd_features[:10, ...]).to(device), torch.Tensor(labels[:10, ...]).to(device)
+    # return torch.Tensor(qd_features).to(device), torch.Tensor(labels).to(device)
 
 
 if __name__ == "__main__":
