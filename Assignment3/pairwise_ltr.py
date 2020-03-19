@@ -101,9 +101,14 @@ def train_ranknet(data, epochs=100, n_hidden=1024, gamma=1.0, lr=1e-4, batch_siz
 
             docs, labels = get_samples_by_qid(qid=qid, data_split=data.train, device=device)
 
-            # if there is only one doc retrieved by the query
-            if docs.shape[0] == 1: 
-                continue 
+            # if there is only one doc retrieved by the query, sample another query
+            if docs.shape[0] < 2: 
+                other_q = queries[100::]
+                np.random.shuffle(other_q)
+                for qid_new in other_q:
+                    docs, labels = get_samples_by_qid(qid=qid_new, data_split=data.train, device=device)
+                    if not docs.shape[0] < 2: 
+                        break
 
             scores = model.forward(docs)
 
