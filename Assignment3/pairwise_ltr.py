@@ -8,14 +8,18 @@ import matplotlib.pyplot as plt
 import evaluate as evl
 
 from pointwise_ltr import progress_over_last
+from lambdarank import create_matrices
 
 from tqdm import tqdm
 
-class Pairwise_LTR_Model(nn.Module):
 
-    def __init__(self, device, n_hidden):    
-    
+class RankNet(nn.Module):
+    def __init__(self, n_hidden, gamma, batch_size, device):  
+
         super().__init__()
+
+        self.gamma = gamma
+        self.batch_size = batch_size
 
         self.input_size = 501
         self.output_size = 1
@@ -32,44 +36,36 @@ class Pairwise_LTR_Model(nn.Module):
         return self.nn(x)
 
 
-class RankNetLoss(nn.Module):
-    def __init__(self, sigma, batch_size):  
+    def loss(self, scores, labels):
 
-        super().__init__()
+        _, S = create_matrices(scores, self.gamma, labels)
+        score_diff = scores - scores.t()
 
-        self.sigma = sigma
-        self.batch_size = batch_size
+        # Assignment Equation (3)
+        C = 0.5 * (1 - S) * self.gamma * score_diff + torch.log2(1 + torch.exp(-self.gamma * score_diff))
 
-    def _S(self, rel_i, rel_j): 
-        diff = rel_i - rel_j
+        # WITH SAMPLING FIXED BATCH SIZE
+        B = np.ones(C.shape) - np.eye(C.shape[0])
+        idx = B.nonzero()
+        i = np.arange(len(idx[0]))
+        np.random.shuffle(i)
+        sample = i[:self.batch_size]
+        idx1, idx2 = idx[0][sample], idx[1][sample]
+        C_T = C[idx1, idx2].sum()
 
-        if diff == 0:
-            return 0
-        else:
-            # returns -1 if diff is negative and +1 if diff is positive
-            return diff ** 0 
 
-
-    def forward(self, pred_score, labels):
-
-        pairs_all = list(permutations(np.arange(len(labels)), 2))
-
-        np.random.shuffle(pairs_all)
-
-        # select only a fixed subset of pairs to consider for the loss 
-        pairs_batch = pairs_all[:self.batch_size]
-
-        C_T = 0 
-
-        for doc_i, doc_j in pairs_all: 
-
-            C = (0.5 * (1 - self._S(labels[doc_i], labels[doc_j]))
-                    * self.sigma * (pred_score[doc_i] - pred_score[doc_j]) 
-                    + torch.log2(1 + torch.exp(-self.sigma*(pred_score[doc_i] - pred_score[doc_j]))))
-
-            C_T += C
+        # #WITH MEAN 
+        # # pairs on the diagonal are not valid
+        # C_T = torch.sum(C  * (torch.ones_like(C) - torch.eye(C.shape[0]))) 
+        # C_mean = C_T / (C.nelement() - C.shape[0])
 
         return C_T 
+
+    def spedup_loss(self, scores, labels, ):
+        pass
+        # Sc, S = create_matrices(scores, self.gamma, labels)
+        # _lambda = gamma * (0.5 * (1 - S) - Sc)
+        # return _lambda.sum(dim=1)[:, None]
 
             
 
@@ -84,22 +80,26 @@ def get_samples_by_qid(qid, data_split, device):
 def train_ranknet(data, epochs=100, n_hidden=1024, lr=1e-4, batch_size=10, spedup = True, device='cpu'):
 
 
-    model = Pairwise_LTR_Model(device, n_hidden=n_hidden)
+    model = RankNet(n_hidden=n_hidden, gamma=1.0, batch_size=batch_size, device=device)
+
     optimizer = torch.optim.Adam(model.parameters(), lr=lr) 
 
     if spedup:
-        pass # implement sped up ranknetloss here
+        loss_fn = RankNet.spedup_loss
     else:
-        loss_fn = RankNetLoss(sigma=1.0, batch_size=batch_size)
+        loss_fn = RankNet.loss
 
     # track loss and ndcg on validation set 
     loss_curve = []
     ndcg_val_curve = []
 
-
     queries = np.arange(0, data.train.num_queries())
 
+
+    
     for epoch in range(epochs): 
+
+        # i = 0
 
         loss_epoch = []
         np.random.shuffle(queries)
@@ -112,9 +112,9 @@ def train_ranknet(data, epochs=100, n_hidden=1024, lr=1e-4, batch_size=10, spedu
             if docs.shape[0] == 1: 
                 continue 
 
-            pred_score = model.forward(docs)
+            scores = model.forward(docs)
 
-            loss = loss_fn(pred_score, labels)
+            loss = loss_fn(model, scores, labels)
             loss_epoch.append(loss.item())
 
             # optimize
@@ -124,6 +124,11 @@ def train_ranknet(data, epochs=100, n_hidden=1024, lr=1e-4, batch_size=10, spedu
             # to prevent exploding gradient:
             torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
             optimizer.step()
+
+            # i += 1
+
+            # if i == 1000:
+            #     break
 
         loss_curve.append(loss_epoch)
 
@@ -135,6 +140,7 @@ def train_ranknet(data, epochs=100, n_hidden=1024, lr=1e-4, batch_size=10, spedu
 
         # early stopping using NDCG on validation set
         if not progress_over_last(ndcg_val_curve):
+            print("eaelr")
             break
         
     
