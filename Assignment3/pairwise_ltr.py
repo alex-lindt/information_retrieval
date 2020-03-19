@@ -44,22 +44,22 @@ class RankNet(nn.Module):
         # Assignment Equation (3)
         C = 0.5 * (1 - S) * self.gamma * score_diff + torch.log2(1 + torch.exp(-self.gamma * score_diff))
 
-        # WITH SAMPLING FIXED BATCH SIZE
-        B = np.ones(C.shape) - np.eye(C.shape[0])
-        idx = B.nonzero()
-        i = np.arange(len(idx[0]))
-        np.random.shuffle(i)
-        sample = i[:self.batch_size]
-        idx1, idx2 = idx[0][sample], idx[1][sample]
-        C_T = C[idx1, idx2].sum()
+        # # WITH SAMPLING FIXED BATCH SIZE
+        # B = np.ones(C.shape) - np.eye(C.shape[0])
+        # idx = B.nonzero()
+        # i = np.arange(len(idx[0]))
+        # np.random.shuffle(i)
+        # sample = i[:self.batch_size]
+        # idx1, idx2 = idx[0][sample], idx[1][sample]
+        # C_T = C[idx1, idx2].sum()
 
 
-        # #WITH MEAN 
-        # # pairs on the diagonal are not valid
-        # C_T = torch.sum(C  * (torch.ones_like(C) - torch.eye(C.shape[0]))) 
-        # C_mean = C_T / (C.nelement() - C.shape[0])
+        #WITH MEAN 
+        # pairs on the diagonal are not valid
+        C_T = torch.sum(C  * (torch.ones_like(C) - torch.eye(C.shape[0]))) 
+        C_mean = C_T / (C.nelement() - C.shape[0])
 
-        return C_T 
+        return C_mean
 
     def spedup_loss(self, scores, labels, ):
         pass
@@ -95,16 +95,13 @@ def train_ranknet(data, epochs=100, n_hidden=1024, lr=1e-4, batch_size=10, spedu
 
     queries = np.arange(0, data.train.num_queries())
 
-
     
     for epoch in range(epochs): 
-
-        # i = 0
 
         loss_epoch = []
         np.random.shuffle(queries)
      
-        for qid in tqdm(queries): 
+        for qid in queries[:100]: 
 
             docs, labels = get_samples_by_qid(qid=qid, data_split=data.train, device=device)
 
@@ -125,11 +122,6 @@ def train_ranknet(data, epochs=100, n_hidden=1024, lr=1e-4, batch_size=10, spedu
             torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
             optimizer.step()
 
-            # i += 1
-
-            # if i == 1000:
-            #     break
-
         loss_curve.append(loss_epoch)
 
         # compute NDCG on validation set
@@ -140,10 +132,8 @@ def train_ranknet(data, epochs=100, n_hidden=1024, lr=1e-4, batch_size=10, spedu
 
         # early stopping using NDCG on validation set
         if not progress_over_last(ndcg_val_curve):
-            print("eaelr")
             break
         
-    
     return model, loss_curve, ndcg_val_curve
 
 
@@ -173,6 +163,9 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     model, loss_curve, ndcg_val_curve = train_ranknet(data, epochs=10, spedup=False, device = device)
+    test_mean = evaluate_ranknet(model, data.test, device, metric=None)
+
+    print(test_mean)
 
     
 
