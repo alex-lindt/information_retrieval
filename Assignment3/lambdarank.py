@@ -50,11 +50,11 @@ def train_lambda_rank(ARGS, data, model):
 
     print(f"Starting {ARGS.epochs} epochs: ")
     for epoch in range(ARGS.epochs):
-
+        np.random.shuffle(queries)
         loss_epoch = []
 
-        for batch in range(ARGS.bpe):
-            X, y = sample_batch(data.train, queries, ARGS.device)
+        for qid in queries[:ARGS.bpe]:
+            X, y = sample_batch(qid, data.train, ARGS.device)
 
             scores = model(X)
 
@@ -89,9 +89,10 @@ def train_lambda_rank(ARGS, data, model):
 def lambda_rank_loss(scores, y, irm_type, gamma=1.0):
     Sc, S = create_matrices(scores, gamma, y)
     _lambda = gamma * (0.5 * (1 - S) - Sc)
-    _irm = irm_delta(scores, y, irm_type)
-    lamb_irm = _lambda * _irm
-    return lamb_irm.mean(dim=1)[:, None]
+    # _irm = irm_delta(scores, y, irm_type)
+    # lamb_irm = _lambda * _irm
+    # return lamb_irm.mean(dim=1)[:, None]
+    return _lambda.mean(dim=1)[:, None]
 
 
 def irm_delta(scores, y, irm_type):
@@ -245,32 +246,30 @@ def calc_err(grades, k=0):
     return np.sum(err)
 
 
-def sample_batch(data_split, queries, device):
+def sample_batch(qid, data_split, device):
     """
     Randomly sample batch from data_split.
 
-    Returns X,Y where X is a [batch_size, 501] feature vector and
+    Returns X,Y where X is a [batch_size, d, 501] feature vector and
     Y is a [batch_size] label vector.
     """
     # Note: following two lines taken from notebook given in canvas discussion
 
-    qid = np.random.choice(queries, size=1)[0]
-
     qd_features = data_split.query_feat(qid)
     labels = data_split.query_labels(qid)
 
-    return torch.Tensor(qd_features[:10, ...]).to(device), torch.Tensor(labels[:10, ...]).to(device)
-    # return torch.Tensor(qd_features).to(device), torch.Tensor(labels).to(device)
+    # return torch.Tensor(qd_features[:10, ...]).to(device), torch.Tensor(labels[:10, ...]).to(device)
+    return torch.Tensor(qd_features).to(device), torch.Tensor(labels).to(device)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # Training
-    parser.add_argument('--epochs', type=int, default=5, help='number of epochs')
+    parser.add_argument('--epochs', type=int, default=50, help='number of epochs')
     parser.add_argument('--n-hidden', type=int, default=256, help='number of hidden layer')
-    parser.add_argument('--bpe', type=int, default=10, help='Batches per epoch')
-    parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
+    parser.add_argument('--bpe', type=int, default=100, help='Batches per epoch')
+    parser.add_argument('--lr', type=float, default=0.02, help='learning rate')
     parser.add_argument('--irm-type', type=str, default="ndcg", help="Training device 'cpu' or 'cuda:0'")
     parser.add_argument('--device', type=str, default="cpu", help="Training device 'cpu' or 'cuda:0'")
 
