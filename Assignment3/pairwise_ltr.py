@@ -1,7 +1,6 @@
 import dataset
 import torch
 from torch import nn
-from pointwise_ltr import sample_batch
 import numpy as np
 from itertools import permutations 
 import matplotlib.pyplot as plt
@@ -9,8 +8,6 @@ import evaluate as evl
 
 from pointwise_ltr import progress_over_last
 from lambdarank import create_matrices
-
-from tqdm import tqdm
 
 
 class RankNet(nn.Module):
@@ -53,7 +50,6 @@ class RankNet(nn.Module):
         # idx1, idx2 = idx[0][sample], idx[1][sample]
         # C_T = C[idx1, idx2].sum()
 
-
         #WITH MEAN 
         # pairs on the diagonal are not valid
         C_T = torch.sum(C  * (torch.ones_like(C) - torch.eye(C.shape[0]))) 
@@ -77,10 +73,10 @@ def get_samples_by_qid(qid, data_split, device):
     return torch.Tensor(docs).to(device), torch.Tensor(labels).to(device) 
 
 
-def train_ranknet(data, epochs=100, n_hidden=1024, lr=1e-4, batch_size=10, spedup = True, device='cpu'):
+def train_ranknet(data, epochs=100, n_hidden=1024, gamma=1.0, lr=1e-4, batch_size=10, spedup = True, device='cpu'):
 
 
-    model = RankNet(n_hidden=n_hidden, gamma=1.0, batch_size=batch_size, device=device)
+    model = RankNet(n_hidden=n_hidden, gamma=gamma, batch_size=batch_size, device=device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr) 
 
