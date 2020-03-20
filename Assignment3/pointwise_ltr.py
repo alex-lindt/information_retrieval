@@ -173,7 +173,6 @@ def plot_distribution_of_scores(model, data):
     ax.bar(x - width/2, P_model, width, label=f'Pointwise LTR Model', color='cornflowerblue')
     ax.bar(x + width/2, P_true, width, label=f'Groud Truth', color='midnightblue')
 
-    # Add some text for labels, title and custom x-axis tick labels, etc.
     ax.set_ylabel('Probability')
     ax.set_xlabel('Score')
     ax.set_title(f'Distributions of Scores')
