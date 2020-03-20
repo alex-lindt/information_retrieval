@@ -131,6 +131,9 @@ def grid_search():
 
 
 def plot_pointwise_ltr(model, loss_curve, ndcg_val_curve):
+    """
+    Plot for AQ2.1.
+    """
     x = np.linspace(0, len(ndcg_val_curve) + 1, len(ndcg_val_curve))
 
     loss_means = np.array([np.mean(l) for l in loss_curve])
@@ -138,12 +141,45 @@ def plot_pointwise_ltr(model, loss_curve, ndcg_val_curve):
 
     plt.title("Loss vs. NDCG on Validation Data")
     plt.xlabel("Epochs")
-    plt.plot(x, loss_means, label='loss over epochs')
-    plt.fill_between(x, loss_means - loss_stds, loss_means + loss_stds, alpha=0.2)
-    plt.plot(x, ndcg_val_curve, label='NDCG on validation data')
+    plt.plot(x, loss_means, label='Loss over epochs', color='cornflowerblue')
+    plt.fill_between(x, loss_means - loss_stds, loss_means + loss_stds, alpha=0.2,  color='cornflowerblue')
+    plt.plot(x, ndcg_val_curve, label='NDCG on validation data',  color='crimson')
     plt.legend()
 
     plt.savefig('pointwise_loss_NDCG')
+
+    
+def plot_distribution_of_scores(model, data):
+    """
+    Plot for AQ2.2.
+    """
+    model_scores_t = model.forward(torch.Tensor(data.test.feature_matrix).to(device))
+    model_scores_t = model_scores_t.cpu().detach().numpy().reshape(-1)
+
+    model_scores_v = model.forward(torch.Tensor(data.validation.feature_matrix).to(device))
+    model_scores_v = model_scores_v.cpu().detach().numpy().reshape(-1)
+
+    model_scores = list(np.round(model_scores_t))+list(np.round(model_scores_v))
+    model_counts = [model_scores.count(i) for i in range(5)]
+    P_model = model_counts / np.sum(model_counts)
+
+    true_scores = list(data.test.label_vector)+list(data.validation.label_vector)
+    true_counts = [true_scores.count(i) for i in range(5)]
+    P_true = true_counts / np.sum(true_counts)
+
+    x = np.arange(5)
+    width = 0.4
+    fig, ax = plt.subplots()
+    ax.bar(x - width/2, P_model, width, label=f'Pointwise LTR Model', color='cornflowerblue')
+    ax.bar(x + width/2, P_true, width, label=f'Groud Truth', color='midnightblue')
+
+    # Add some text for labels, title and custom x-axis tick labels, etc.
+    ax.set_ylabel('Probability')
+    ax.set_xlabel('Score')
+    ax.set_title(f'Distributions of Scores')
+    ax.set_xticks(x)
+    ax.legend()
+    fig.savefig(f'pointwise_distribution')
 
 
 if __name__ == "__main__":
@@ -156,6 +192,9 @@ if __name__ == "__main__":
     # PLOT FOR AQ2.1
     # plot_pointwise_ltr(model, loss_curve, ndcg_val_curve)
 
+    # PLOT FOR AQ2.1
+    # plot_distribution_of_scores(model, data)
+    
     # EVALUATE ON TEST SET
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     evaluate_model(model, data.test, device, metric=None)
