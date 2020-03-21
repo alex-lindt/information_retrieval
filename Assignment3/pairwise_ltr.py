@@ -59,9 +59,9 @@ class RankNet(nn.Module):
         # WITH MEAN
         # pairs on the diagonal are not valid
         C_T = torch.sum(C * (torch.ones_like(C) - torch.eye(C.shape[0])))
-        # C_mean = C_T / (C.nelement() - C.shape[0])
+        C_mean = C_T / (C.nelement() - C.shape[0])
 
-        return C_T
+        return C_mean
 
     def spedup_loss(self, scores, labels, ):
         Sc, S = create_matrices(scores, self.gamma, labels)
