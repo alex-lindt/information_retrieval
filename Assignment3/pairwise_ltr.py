@@ -93,8 +93,7 @@ def train_ranknet(ARGS, model, data, spedup=True):
         loss_fn = model.loss
 
     # track loss and ndcg on validation set 
-    loss_curve = []
-    ndcg_val_curve = []
+    loss_curve, ndcg_val_curve = [], []
 
     queries = np.arange(0, data.train.num_queries())
 
@@ -106,8 +105,7 @@ def train_ranknet(ARGS, model, data, spedup=True):
 
         idx = 0
         for _ in range(ARGS.bpe):
-            batch_loss = []
-            batch_loss_report = []
+            batch_loss, batch_loss_report = [], []
             current_bs = 0
             while current_bs <= ARGS.batch_size:
 

@@ -4,15 +4,13 @@ import argparse
 import pickle as pkl
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
 
 import dataset
-import ranking as rnk
 import evaluate as evl
-
-import pandas as pd
 
 
 class LambdaRank(nn.Module):
@@ -40,11 +38,10 @@ def train_lambda_rank(ARGS, data, model):
     model.train()
 
     optimizer = torch.optim.Adam(model.parameters(), lr=ARGS.lr)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=(1500, 3500), gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=(3500, 4400), gamma=0.1)
 
     # track loss and ndcg on validation set
-    loss_curve = []
-    ndcg_val_curve = []
+    loss_curve, ndcg_val_curve = [], []
 
     queries = np.arange(0, data.train.num_queries())
 
@@ -56,7 +53,8 @@ def train_lambda_rank(ARGS, data, model):
 
         idx = 0
         for _ in range(ARGS.bpe):
-            batch_loss = []
+            batch_loss, batch_loss_report = [], []
+
             current_bs = 0
             while current_bs <= ARGS.batch_size:
                 X, y = sample_batch(queries[idx], data.train, ARGS.device)
@@ -74,8 +72,10 @@ def train_lambda_rank(ARGS, data, model):
 
                 scores = model(X)
 
-                _loss = lambda_rank_loss(scores, y, ARGS.irm_type)
+                _loss = lambda_rank_loss(scores, y, ARGS.irm_type, ARGS.gamma)
                 batch_loss.append(_loss)
+
+                batch_loss_report.append(ranknet_loss(scores, y, ARGS.gamma).item())
 
             # optimize
             optimizer.zero_grad()
@@ -85,7 +85,8 @@ def train_lambda_rank(ARGS, data, model):
             optimizer.step()
 
             scheduler.step()
-            loss_epoch.append(torch.tensor(batch_loss).mean().item())
+
+            loss_epoch.append(np.mean(batch_loss_report))
 
         loss_curve.append(loss_epoch)
 
@@ -93,7 +94,8 @@ def train_lambda_rank(ARGS, data, model):
         val_mean, _ = calculate_ndcg(model, data.validation, ARGS.device)
         ndcg_val_curve.append(val_mean)
 
-        print(f"[Epoch {epoch}] val ndcg: {np.round(val_mean, 4)}, lr: {scheduler.get_lr()}")
+        print(
+            f"[Epoch {epoch}], loss: {np.round(loss_epoch[-1], 4)} val ndcg: {np.round(val_mean, 4)}, lr: {scheduler.get_lr()}")
 
         # early stopping using NDCG on validation set
         # if not progress_over_last(ndcg_val_curve):
@@ -113,16 +115,37 @@ def sample_batch(qid, data_split, device):
     qd_features = data_split.query_feat(qid)
     labels = data_split.query_labels(qid)
 
-    # return torch.Tensor(qd_features[:10, ...]).to(device), torch.Tensor(labels[:10, ...]).to(device)
     return torch.Tensor(qd_features).to(device), torch.Tensor(labels).to(device)
+
+
+def ranknet_loss(scores, labels, gamma):
+    _, S = create_matrices(scores, gamma, labels)
+    score_diff = scores - scores.t()
+
+    # Assignment Equation (3)
+    C = 0.5 * (1 - S) * gamma * score_diff + torch.log2(1 + torch.exp(-gamma * score_diff))
+
+    # WITH MEAN
+    # pairs on the diagonal are not valid
+    C_T = torch.sum(C * (torch.ones_like(C) - torch.eye(C.shape[0])))
+    C_mean = C_T / (C.nelement() - C.shape[0])
+
+    return C_mean
 
 
 def lambda_rank_loss(scores, y, irm_type, gamma=1.0):
     Sc, S = create_matrices(scores, gamma, y)
     _lambdas = gamma * (0.5 * (1 - S) - Sc)
+
+    # set diagonal of lambda to zero
+    lambda_0 = _lambdas * (
+            torch.ones_like(_lambdas, dtype=torch.float) - torch.eye(_lambdas.shape[0], dtype=torch.float))
+
+    # Not sure whether lower triangular or full
     _irm = irm_delta(scores, y, irm_type)
-    lamb_irm = _lambdas * _irm
-    lamb_irm = lamb_irm.mean(dim=1, keepdim=True)
+    # _irm = torch.triu(irm_delta(scores, y, irm_type), diagonal=1)
+
+    lamb_irm = (lambda_0 * _irm).sum(dim=1, keepdim=True)
     return (scores * lamb_irm.detach()).mean()
 
 
@@ -277,16 +300,62 @@ def calc_err(grades, k=0):
     return np.sum(err)
 
 
+def plot_lambdarank(identifier, delta_weight, loss_curve, ndcg_val_curve):
+    plt.clf()
+    plt.cla()
+    plt.close()
+
+    x = np.linspace(0, len(ndcg_val_curve) + 1, len(ndcg_val_curve))
+
+    loss_means = np.array([np.mean(l) for l in loss_curve])
+    loss_stds = np.array([np.std(l) for l in loss_curve])
+
+    plt.title("Loss vs. NDCG on Validation Data")
+    plt.xlabel("Epochs")
+    plt.plot(x, loss_means, label='loss over epochs')
+    plt.fill_between(x, loss_means - loss_stds, loss_means + loss_stds, alpha=0.2)
+    plt.plot(x, ndcg_val_curve, label='NDCG on validation data')
+    plt.legend()
+    plt.savefig(os.path.join(f"lambdarank", delta_weight, "figures", f'f_NDCGvsLoss_{identifier}.png'))
+
+    plt.clf()
+    plt.cla()
+    plt.close()
+
+    plt.title("NDCG on Validation Data")
+    plt.xlabel("Epochs")
+    plt.plot(x, ndcg_val_curve, label='NDCG on validation data')
+    plt.legend()
+    plt.savefig(os.path.join("lambdarank", delta_weight, "figures", f'f_NDCG_{identifier}.png'))
+
+    plt.clf()
+    plt.cla()
+    plt.close()
+
+    plt.title("Loss on Validation Data")
+    plt.xlabel("Epochs")
+    plt.plot(x, loss_means, label='loss over epochs')
+    plt.fill_between(x, loss_means - loss_stds, loss_means + loss_stds, alpha=0.2)
+    plt.legend()
+    plt.savefig(os.path.join("lambdarank", delta_weight, "figures", f'f_loss_{identifier}.png'))
+
+
+def save_thing(thing, name):
+    with open(name, 'wb') as handle:
+        pkl.dump(thing, handle)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # Training
-    parser.add_argument('--epochs', type=int, default=50, help='number of epochs')
-    parser.add_argument('--n-hidden', type=int, default=256, help='number of hidden layer')
-    parser.add_argument('--batch-size', type=int, default=64, help='number of hidden layer')
-    parser.add_argument('--bpe', type=int, default=100, help='Batches per epoch')
-    parser.add_argument('--lr', type=float, default=0.02, help='learning rate')
-    parser.add_argument('--irm-type', type=str, default="ndcg", help="Training device 'cpu' or 'cuda:0'")
+    parser.add_argument('--epochs', type=int, default=10, help='Number of epochs')
+    parser.add_argument('--n-hidden', type=int, default=256, help='Number of hidden layer')
+    parser.add_argument('--batch-size', type=int, default=32, help='Batch size')
+    parser.add_argument('--bpe', type=int, default=2, help='Batches per epoch')
+    parser.add_argument('--gamma', type=float, default=1.0, help='Loss parameter gamma')
+    parser.add_argument('--lr', type=float, default=0.002, help='Learning rate')
+    parser.add_argument('--irm-type', type=str, default="ndcg", help="Delta weight type")
     parser.add_argument('--device', type=str, default="cpu", help="Training device 'cpu' or 'cuda:0'")
 
     ARGS = parser.parse_args()
@@ -297,12 +366,30 @@ if __name__ == "__main__":
     data = dataset.get_dataset().get_data_folds()[0]
     data.read_data()
 
-    model = LambdaRank(ARGS.n_hidden)
+    for delta_weight in ["ndcg", "err"]:
+        ARGS.irm_type = delta_weight
+        for lr in [0.02, 0.002]:
+            ARGS.lr = lr
+            for n_hidden in [32, 128, 256]:
+                identifier = f"{ARGS.irm_type}_{ARGS.lr}_{ARGS.n_hidden}"
 
-    model, loss_curve, ndcg_val_curve = train_lambda_rank(ARGS, data, model)
+                ARGS.n_hidden = n_hidden
 
-    mean_results_ndcg = calculate_ndcg(model, data.test, ARGS.device, True)
-    mean_results_err = calculate_err(model, data.test, ARGS.device, True)
+                model = LambdaRank(ARGS.n_hidden)
+                model, loss_curve, ndcg_val_curve = train_lambda_rank(ARGS, data, model)
 
-    print(f"Mean nDCG:{mean_results_ndcg}")
-    print(f"Mean ERR:{mean_results_err}")
+                save_thing(model, os.path.join(f"lambdarank", delta_weight, "models", f"m_{identifier}.pkl"))
+                save_thing(loss_curve, os.path.join("lambdarank", delta_weight, "figures", f"loss_{identifier}.pkl"))
+                save_thing(ndcg_val_curve,
+                           os.path.join("lambdarank", delta_weight, "figures", f"ndcg_val_{identifier}.pkl"))
+
+                print(f"Evaluation for model irm-type: {ARGS.irm_type}, lr: {ARGS.lr}, n-hidden: {ARGS.n_hidden}")
+                mean_results_ndcg = calculate_ndcg(model, data.test, ARGS.device, True)
+                mean_results_err = calculate_err(model, data.test, ARGS.device, True)
+
+                print(f"Mean nDCG:{mean_results_ndcg}")
+                print(f"Mean ERR:{mean_results_err}")
+
+                plot_lambdarank(identifier, delta_weight, loss_curve, ndcg_val_curve)
+
+                print("All saved and plotted, next model!")
