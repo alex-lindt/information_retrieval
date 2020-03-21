@@ -50,8 +50,9 @@ def train_lambda_rank(ARGS, data, model):
 
     print(f"Starting {ARGS.epochs} epochs: ")
     for epoch in range(ARGS.epochs):
-        np.random.shuffle(queries)
+
         loss_epoch = []
+        np.random.shuffle(queries)
 
         idx = 0
         for _ in range(ARGS.bpe):
@@ -74,7 +75,7 @@ def train_lambda_rank(ARGS, data, model):
                 scores = model(X)
 
                 _loss = lambda_rank_loss(scores, y, ARGS.irm_type)
-                batch_loss.append(_loss.item())
+                batch_loss.append(_loss)
 
             # optimize
             optimizer.zero_grad()
@@ -84,7 +85,7 @@ def train_lambda_rank(ARGS, data, model):
             optimizer.step()
 
             scheduler.step()
-            loss_epoch.append(np.sum(batch_loss))
+            loss_epoch.append(torch.tensor(batch_loss).mean().item())
 
         loss_curve.append(loss_epoch)
 
