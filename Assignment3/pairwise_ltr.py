@@ -59,9 +59,9 @@ class RankNet(nn.Module):
         # WITH MEAN
         # pairs on the diagonal are not valid
         C_T = torch.sum(C * (torch.ones_like(C) - torch.eye(C.shape[0])))
-        C_mean = C_T / (C.nelement() - C.shape[0])
+        # C_mean = C_T / (C.nelement() - C.shape[0])
 
-        return C_mean
+        return C_T
 
     def spedup_loss(self, scores, labels, ):
         Sc, S = create_matrices(scores, self.gamma, labels)
@@ -84,8 +84,8 @@ def get_samples_by_qid(qid, data_split, device):
     return torch.Tensor(docs).to(device), torch.Tensor(labels).to(device)
 
 
-def train_ranknet(ARGS, model, data, spedup=True):
-    optimizer = torch.optim.Adam(model.parameters(), lr=ARGS.lr)
+def train_ranknet(model, data, bpe = 100 ,epochs=50, batch_size=64, lr=1e-4, spedup=False, device='cpu'):
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     if spedup:
         loss_fn = model.spedup_loss
@@ -98,24 +98,24 @@ def train_ranknet(ARGS, model, data, spedup=True):
 
     queries = np.arange(0, data.train.num_queries())
 
-    print(f"Starting {ARGS.epochs} epochs: ")
-    for epoch in range(ARGS.epochs):
+    print(f"Starting {epochs} epochs: ")
+    for epoch in range(epochs):
 
         loss_epoch = []
         np.random.shuffle(queries)
 
         idx = 0
-        for _ in range(ARGS.bpe):
+        for _ in range(bpe):
             batch_loss = []
             batch_loss_report = []
             current_bs = 0
-            while current_bs <= ARGS.batch_size:
+            while current_bs <= batch_size:
 
-                X, y = get_samples_by_qid(qid=queries[idx], data_split=data.train, device=ARGS.device)
+                X, y = get_samples_by_qid(qid=queries[idx], data_split=data.train, device=device)
 
-                if current_bs > ARGS.batch_size:
-                    X = X[:current_bs - ARGS.batch_size]
-                    y = y[:current_bs - ARGS.batch_size]
+                if current_bs > batch_size:
+                    X = X[:current_bs - batch_size]
+                    y = y[:current_bs - batch_size]
 
                 idx += 1
 
@@ -135,6 +135,8 @@ def train_ranknet(ARGS, model, data, spedup=True):
                 else:
                     batch_loss_report.append(_loss.item())
 
+
+
             # if there is only one doc retrieved by the query, sample another query
             # if docs.shape[0] < 2:
             #     other_q = queries[100::]
@@ -143,6 +145,8 @@ def train_ranknet(ARGS, model, data, spedup=True):
             #         docs, labels = get_samples_by_qid(qid=qid_new, data_split=data.train, device=device)
             #         if not docs.shape[0] < 2:
             #             break
+
+
 
             # optimize
             optimizer.zero_grad()
@@ -157,7 +161,7 @@ def train_ranknet(ARGS, model, data, spedup=True):
         loss_curve.append(loss_epoch)
 
         # compute NDCG on validation set
-        val_mean, _ = evaluate_ranknet(model, data.validation, ARGS.device)
+        val_mean, _ = evaluate_ranknet(model, data.validation, device)
         ndcg_val_curve.append(val_mean)
 
         print(f"[Epoch {epoch}] loss: {loss_epoch[-1]} validation ndcg: ({val_mean})")
@@ -177,7 +181,7 @@ def evaluate_ranknet(model, data_split, device, metric='ndcg'):
     return evl.evaluate(data_split, scores)
 
 
-def plot_pairwise_ltr(model, loss_curve, ndcg_val_curve):
+def plot_pairwise_ltr(loss_curve, ndcg_val_curve):
     x = np.linspace(0, len(ndcg_val_curve) + 1, len(ndcg_val_curve))
 
     loss_means = np.array([np.mean(l) for l in loss_curve])
@@ -205,18 +209,45 @@ def plot_pairwise_ltr(model, loss_curve, ndcg_val_curve):
     plt.savefig('pairwise_loss')
 
 
+def grid_search(data, bpe= 100, epochs=100, batch_size=64, spedup=False, device='cpu'):
+  """
+  Performs grid search.
+  """
+  for n_hidden in [256, 512, 1024]:
+    for lr in [1e-3, 1e-4, 1e-5]:
+      for gamma in [0.5, 1, 2]:
+        print(n_hidden, lr, gamma)
+        model = RankNet(n_hidden=n_hidden, 
+                gamma=gamma, 
+                batch_size= batch_size, 
+                device=device)
+
+        _, loss_curve, ndcg_val_curve = train_ranknet(model = model, 
+                                              data = data, 
+                                              bpe = bpe, 
+                                              epochs = epochs, 
+                                              batch_size = batch_size, 
+                                              lr = lr, 
+                                              spedup = spedup, 
+                                              device = device)
+
+        max_ndcg_val = max(ndcg_val_curve)
+        print(f'Hidden {n_hidden} LR {lr} BS {batch_size} : {max_ndcg_val}')
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # Training
-    parser.add_argument('--epochs', type=int, default=50, help='number of epochs')
-    parser.add_argument('--n-hidden', type=int, default=256, help='number of hidden layer')
-    parser.add_argument('--batch-size', type=int, default=64, help='number of hidden layer')
+    parser.add_argument('--epochs', type=int, default=100, help='number of epochs')
+    parser.add_argument('--n-hidden', type=int, default=1024, help='number of hidden layer')
+    parser.add_argument('--batch-size', type=int, default=50, help='number of hidden layer')
     parser.add_argument('--bpe', type=int, default=100, help='Batches per epoch')
-    parser.add_argument('--lr', type=float, default=0.02, help='learning rate')
+    parser.add_argument('--lr', type=float, default=1e-5, help='learning rate')
     parser.add_argument('--gamma', type=float, default=1.0, help='learning rate')
-    parser.add_argument('--irm-type', type=str, default="ndcg", help="Training device 'cpu' or 'cuda:0'")
+    # parser.add_argument('--irm-type', type=str, default="ndcg", help="")
     parser.add_argument('--device', type=str, default="cpu", help="Training device 'cpu' or 'cuda:0'")
+    parser.add_argument('--spedup', type=bool, default=True, help="Runs RankNet if False, runs sped up Ranknet if True")
 
     ARGS = parser.parse_args()
 
@@ -226,27 +257,25 @@ if __name__ == "__main__":
     data = dataset.get_dataset().get_data_folds()[0]
     data.read_data()
 
-    print('Number of features: %d' % data.num_features)
-    print('Number of queries in training set: %d' % data.train.num_queries())
-    print('Number of documents in training set: %d' % data.train.num_docs())
-    print('Number of queries in validation set: %d' % data.validation.num_queries())
-    print('Number of documents in validation set: %d' % data.validation.num_docs())
-    print('Number of queries in test set: %d' % data.test.num_queries())
-    print('Number of documents in test set: %d' % data.test.num_docs())
+    # print('Number of features: %d' % data.num_features)
+    # print('Number of queries in training set: %d' % data.train.num_queries())
+    # print('Number of documents in training set: %d' % data.train.num_docs())
+    # print('Number of queries in validation set: %d' % data.validation.num_queries())
+    # print('Number of documents in validation set: %d' % data.validation.num_docs())
+    # print('Number of queries in test set: %d' % data.test.num_queries())
+    # print('Number of documents in test set: %d' % data.test.num_docs())
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = RankNet(n_hidden=ARGS.n_hidden, gamma=ARGS.gamma, batch_size=ARGS.batch_size, device=ARGS.device)
 
-    model = RankNet(n_hidden=ARGS.n_hidden, gamma=ARGS.gamma, batch_size=ARGS.batch_size, device=device)
-
-    # tic = time.perf_counter()
+    tic = time.perf_counter()
     # TODO: Integrate parameters, no priority but looks nicer in the end
-    model, loss_curve, ndcg_val_curve = train_ranknet(ARGS, model, data, spedup=False)
+    model_trained, loss_curve, ndcg_val_curve = train_ranknet(model, data, bpe = ARGS.bpe, epochs=ARGS.epochs, batch_size=ARGS.batch_size, lr=ARGS.lr, spedup=ARGS.spedup, device=ARGS.device)
 
-    # toc = time.perf_counter() 
-    # print(f"Trained in {toc - tic:0.4f} seconds")
+    toc = time.perf_counter() 
+    print(f"Trained in {toc - tic:0.4f} seconds")
 
-    test_mean = evaluate_ranknet(model, data.test, device, metric=None)
+    test_mean = evaluate_ranknet(model_trained, data.test, ARGS.device, metric=None)
 
     print(test_mean)
 
-    plot_pairwise_ltr(model, loss_curve, ndcg_val_curve)
+    plot_pairwise_ltr(loss_curve, ndcg_val_curve)
