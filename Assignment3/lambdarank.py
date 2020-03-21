@@ -53,23 +53,38 @@ def train_lambda_rank(ARGS, data, model):
         np.random.shuffle(queries)
         loss_epoch = []
 
-        for qid in queries[:ARGS.bpe]:
-            X, y = sample_batch(qid, data.train, ARGS.device)
+        idx = 0
+        for _ in range(ARGS.bpe):
+            batch_loss = []
+            current_bs = 0
+            while current_bs <= ARGS.batch_size:
+                X, y = sample_batch(queries[idx], data.train, ARGS.device)
+                if current_bs > ARGS.batch_size:
+                    X = X[:current_bs - ARGS.batch_size]
+                    y = y[:current_bs - ARGS.batch_size]
 
-            scores = model(X)
+                idx += 1
 
-            lambdas = lambda_rank_loss(scores, y, ARGS.irm_type)
+                # if there is only one doc retrieved by the query
+                if X.shape[0] == 1:
+                    continue
 
-            loss = (scores * lambdas.detach()).mean()
-            loss_epoch.append(loss.item())
+                current_bs += X.size(0)
+
+                scores = model(X)
+
+                _loss = lambda_rank_loss(scores, y, ARGS.irm_type)
+                batch_loss.append(_loss.item())
 
             # optimize
             optimizer.zero_grad()
-            loss.backward()
+            for loss in batch_loss:
+                loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
             optimizer.step()
 
             scheduler.step()
+            loss_epoch.append(np.sum(batch_loss))
 
         loss_curve.append(loss_epoch)
 
@@ -86,13 +101,28 @@ def train_lambda_rank(ARGS, data, model):
     return model, loss_curve, ndcg_val_curve
 
 
+def sample_batch(qid, data_split, device):
+    """
+    Randomly sample batch from data_split.
+    Returns X,Y where X is a [batch_size, d, 501] feature vector and
+    Y is a [batch_size] label vector.
+    """
+    # Note: following two lines taken from notebook given in canvas discussion
+
+    qd_features = data_split.query_feat(qid)
+    labels = data_split.query_labels(qid)
+
+    # return torch.Tensor(qd_features[:10, ...]).to(device), torch.Tensor(labels[:10, ...]).to(device)
+    return torch.Tensor(qd_features).to(device), torch.Tensor(labels).to(device)
+
+
 def lambda_rank_loss(scores, y, irm_type, gamma=1.0):
     Sc, S = create_matrices(scores, gamma, y)
-    _lambda = gamma * (0.5 * (1 - S) - Sc)
-    # _irm = irm_delta(scores, y, irm_type)
-    # lamb_irm = _lambda * _irm
-    # return lamb_irm.mean(dim=1)[:, None]
-    return _lambda.mean(dim=1)[:, None]
+    _lambdas = gamma * (0.5 * (1 - S) - Sc)
+    _irm = irm_delta(scores, y, irm_type)
+    lamb_irm = _lambdas * _irm
+    lamb_irm = lamb_irm.mean(dim=1, keepdim=True)
+    return (scores * lamb_irm.detach()).mean()
 
 
 def irm_delta(scores, y, irm_type):
@@ -246,28 +276,13 @@ def calc_err(grades, k=0):
     return np.sum(err)
 
 
-def sample_batch(qid, data_split, device):
-    """
-    Randomly sample batch from data_split.
-
-    Returns X,Y where X is a [batch_size, d, 501] feature vector and
-    Y is a [batch_size] label vector.
-    """
-    # Note: following two lines taken from notebook given in canvas discussion
-
-    qd_features = data_split.query_feat(qid)
-    labels = data_split.query_labels(qid)
-
-    # return torch.Tensor(qd_features[:10, ...]).to(device), torch.Tensor(labels[:10, ...]).to(device)
-    return torch.Tensor(qd_features).to(device), torch.Tensor(labels).to(device)
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # Training
     parser.add_argument('--epochs', type=int, default=50, help='number of epochs')
     parser.add_argument('--n-hidden', type=int, default=256, help='number of hidden layer')
+    parser.add_argument('--batch-size', type=int, default=64, help='number of hidden layer')
     parser.add_argument('--bpe', type=int, default=100, help='Batches per epoch')
     parser.add_argument('--lr', type=float, default=0.02, help='learning rate')
     parser.add_argument('--irm-type', type=str, default="ndcg", help="Training device 'cpu' or 'cuda:0'")
