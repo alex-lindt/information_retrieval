@@ -9,9 +9,9 @@ pointwise_ltr.py
 Set different parameters by altering line 196 to 
 ```python
 model, loss_curve, ndcg_val_curve = train_pointwise_ltr(data,
-                                                        n_hidden=512, 
-                                                        lr=1e-5, 
-                                                        batch_size=50)
+                                                        n_hidden=N_HIDDEN, 
+                                                        lr=LR, 
+                                                        batch_size=BATCH_SIZE)
 ```
 with your respective parameter choices.
 
