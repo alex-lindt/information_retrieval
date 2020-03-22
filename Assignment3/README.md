@@ -17,6 +17,21 @@ with your respective parameter choices.
 
 ## Pairwise LTR
 
+The pairwise_ltr.py script contains the code to train and evaluate the RankNet and sped-up RankNet models. The script can be run with the following arguments: 
+
+```
+--epochs      number of epochs
+--n-hidden    number of hidden layer 
+--batch-size  number of hidden layer
+--bpe         batches per epoch
+--lr          learning rate
+--gamma       temperature
+--spedup      runs RankNet if False, runs sped up Ranknet if True
+--device      training device 'cpu' or 'cuda:0' 
+```
+
+
+
 ## Listwise LTR with LambdaRank
 Train the listwise LTR model with
 ```python
