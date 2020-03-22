@@ -62,6 +62,7 @@ class RankNet(nn.Module):
         C_mean = C_T / (C.nelement() - C.shape[0])
 
         return C_mean
+        # return C_T
 
     def spedup_loss(self, scores, labels, ):
         Sc, S = create_matrices(scores, self.gamma, labels)
@@ -72,7 +73,9 @@ class RankNet(nn.Module):
                 torch.ones_like(_lambda, dtype=torch.float) - torch.eye(_lambda.shape[0], dtype=torch.float))
 
         # average across i 
-        lambdas = (lambda_0.sum(dim=1) / (lambda_0.shape[1] - 1))[:, None]
+        # lambdas = (lambda_0.sum(dim=1) / (lambda_0.shape[1] - 1))[:, None]
+        lambdas = (lambda_0).sum(dim=1, keepdim=True)
+
 
         return (scores * lambdas.detach()).mean()
 
@@ -109,6 +112,7 @@ def train_ranknet(model, data, bpe = 100 ,epochs=50, batch_size=64, lr=1e-4, spe
             batch_loss = []
             batch_loss_report = []
             current_bs = 0
+
             while current_bs <= batch_size:
 
                 X, y = get_samples_by_qid(qid=queries[idx], data_split=data.train, device=device)
@@ -130,33 +134,21 @@ def train_ranknet(model, data, bpe = 100 ,epochs=50, batch_size=64, lr=1e-4, spe
                 _loss = loss_fn(scores, y)
                 batch_loss.append(_loss)
 
-                if spedup:
-                    batch_loss_report.append(model.loss(scores, y).item())
-                else:
-                    batch_loss_report.append(_loss.item())
-
-
-
-            # if there is only one doc retrieved by the query, sample another query
-            # if docs.shape[0] < 2:
-            #     other_q = queries[100::]
-            #     np.random.shuffle(other_q)
-            #     for qid_new in other_q:
-            #         docs, labels = get_samples_by_qid(qid=qid_new, data_split=data.train, device=device)
-            #         if not docs.shape[0] < 2:
-            #             break
-
-
+                # if spedup:
+                #     batch_loss_report.append(model.loss(scores, y).item())
+                # else:
+                #     batch_loss_report.append(_loss.item())
 
             # optimize
             optimizer.zero_grad()
             for loss in batch_loss:
                 loss.backward()
+
             # to prevent exploding gradient:
             torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
             optimizer.step()
 
-            loss_epoch.append(np.mean(batch_loss_report))
+            # loss_epoch.append(np.mean(batch_loss_report))
 
         loss_curve.append(loss_epoch)
 
@@ -164,7 +156,11 @@ def train_ranknet(model, data, bpe = 100 ,epochs=50, batch_size=64, lr=1e-4, spe
         val_mean, _ = evaluate_ranknet(model, data.validation, device)
         ndcg_val_curve.append(val_mean)
 
-        print(f"[Epoch {epoch}] loss: {loss_epoch[-1]} validation ndcg: ({val_mean})")
+        print(f"[Epoch {epoch}] validation ndcg: ({val_mean})")
+
+
+
+        # print(f"[Epoch {epoch}] loss: {loss_epoch[-1]} validation ndcg: ({val_mean})")
 
         # early stopping using NDCG on validation set
         if not progress_over_last(ndcg_val_curve):
@@ -209,14 +205,46 @@ def plot_pairwise_ltr(loss_curve, ndcg_val_curve):
     plt.savefig('pairwise_loss')
 
 
-def grid_search(data, bpe= 100, epochs=100, batch_size=64, spedup=False, device='cpu'):
+# def grid_search(data, bpe= 100, epochs=100, batch_size=64, spedup=False, device='cpu'):
+#   """
+#   Performs grid search.
+#   """
+#   for n_hidden in [256, 512, 1024]:
+#     for lr in [1e-3, 1e-4, 1e-5]:
+#       for gamma in [0.5, 1, 2]:
+#         print(n_hidden, lr, gamma)
+#         model = RankNet(n_hidden=n_hidden, 
+#                 gamma=gamma, 
+#                 batch_size= batch_size, 
+#                 device=device)
+
+#         _, loss_curve, ndcg_val_curve = train_ranknet(model = model, 
+#                                               data = data, 
+#                                               bpe = bpe, 
+#                                               epochs = epochs, 
+#                                               batch_size = batch_size, 
+#                                               lr = lr, 
+#                                               spedup = spedup, 
+#                                               device = device)
+
+#         max_ndcg_val = max(ndcg_val_curve)
+#         print(f'Hidden {n_hidden} LR {lr} BS {batch_size} : {max_ndcg_val}')
+
+def grid_search(spedup=True):
   """
   Performs grid search.
   """
+
+
+  # res = defaultdict()
+  res = defaultdict(lambda: defaultdict())
+
   for n_hidden in [256, 512, 1024]:
     for lr in [1e-3, 1e-4, 1e-5]:
       for gamma in [0.5, 1, 2]:
+
         print(n_hidden, lr, gamma)
+
         model = RankNet(n_hidden=n_hidden, 
                 gamma=gamma, 
                 batch_size= batch_size, 
@@ -233,6 +261,13 @@ def grid_search(data, bpe= 100, epochs=100, batch_size=64, spedup=False, device=
 
         max_ndcg_val = max(ndcg_val_curve)
         print(f'Hidden {n_hidden} LR {lr} BS {batch_size} : {max_ndcg_val}')
+
+        # res[str((n_hidden, lr, gamma))] = max_ndcg_val
+        res[str((n_hidden, lr, gamma))]["ncdg"] = max_ndcg_val
+        res[str((n_hidden, lr, gamma))]["epochs"] = len(ncdg_val_curve)
+
+        with open("./drive/My Drive/IR1/res_gridsearch", 'w', encoding='utf-8') as f:
+                    json.dump(res, f, ensure_ascii=False, indent=4)
 
 
 if __name__ == "__main__":
