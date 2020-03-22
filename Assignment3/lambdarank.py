@@ -349,10 +349,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # Training
-    parser.add_argument('--epochs', type=int, default=10, help='Number of epochs')
+    parser.add_argument('--epochs', type=int, default=50, help='Number of epochs')
     parser.add_argument('--n-hidden', type=int, default=256, help='Number of hidden layer')
     parser.add_argument('--batch-size', type=int, default=32, help='Batch size')
-    parser.add_argument('--bpe', type=int, default=2, help='Batches per epoch')
+    parser.add_argument('--bpe', type=int, default=100, help='Batches per epoch')
     parser.add_argument('--gamma', type=float, default=1.0, help='Loss parameter gamma')
     parser.add_argument('--lr', type=float, default=0.002, help='Learning rate')
     parser.add_argument('--irm-type', type=str, default="ndcg", help="Delta weight type")
@@ -372,6 +372,10 @@ if __name__ == "__main__":
             ARGS.lr = lr
             for n_hidden in [32, 128, 256]:
                 identifier = f"{ARGS.irm_type}_{ARGS.lr}_{ARGS.n_hidden}"
+
+                # Otherwise ERR gets too expensive to compute ...
+                if delta_weight == "err":
+                    ARGS.batch_size = 16
 
                 ARGS.n_hidden = n_hidden
 
