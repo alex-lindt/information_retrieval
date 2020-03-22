@@ -98,8 +98,8 @@ def train_lambda_rank(ARGS, data, model):
             f"[Epoch {epoch}], loss: {np.round(loss_epoch[-1], 4)} val ndcg: {np.round(val_mean, 4)}, lr: {scheduler.get_lr()}")
 
         # early stopping using NDCG on validation set
-        # if not progress_over_last(ndcg_val_curve):
-        #     break
+        if not progress_over_last(ndcg_val_curve):
+            break
 
     return model, loss_curve, ndcg_val_curve
 
@@ -116,6 +116,15 @@ def sample_batch(qid, data_split, device):
     labels = data_split.query_labels(qid)
 
     return torch.Tensor(qd_features).to(device), torch.Tensor(labels).to(device)
+
+
+def progress_over_last(val_curve, n=10):
+    """
+    Early stopping using the validation set: Check if there is still progress.
+    """
+    if len(val_curve) < n:
+        return True
+    return any(val_curve[-1] - v > 1e-4 for v in val_curve[-n:-1])
 
 
 def ranknet_loss(scores, labels, gamma):
